@@ -49,6 +49,11 @@ audit:
 
 ## build/api: build the cmd/api application
 .PHONY: build/api
-build/api:
+build/api: templ/generate
 	@echo 'Building cmd/api...'
 	go build -ldflags='-s' -o=./bin/api ./cmd/api
+
+.PHONY: templ/generate
+templ/generate:
+	@echo 'Generating templ templates...'
+	templ generate

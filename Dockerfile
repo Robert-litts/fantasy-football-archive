@@ -6,6 +6,9 @@ WORKDIR /app
 # Install required build tools
 RUN apk add --no-cache make
 
+# Install templ
+RUN go install github.com/a-h/templ/cmd/templ@latest
+
 # Copy only the files needed for downloading dependencies first
 COPY go.mod go.sum ./
 RUN go mod download

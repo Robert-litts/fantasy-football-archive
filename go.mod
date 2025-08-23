@@ -3,12 +3,11 @@ module github.com/Robert-litts/fantasy-football-archive
 go 1.23.3
 
 require (
-	github.com/a-h/templ v0.3.833
+	github.com/a-h/templ v0.3.943
 	github.com/alexedwards/argon2id v1.0.0
 	github.com/coreos/go-oidc/v3 v3.12.0
-	github.com/go-redis/redis v6.15.9+incompatible
+	github.com/go-redis/redis/v8 v8.3.3
 	github.com/gorilla/sessions v1.4.0
-	github.com/joho/godotenv v1.5.1
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/lib/pq v1.10.9
 	github.com/rbcervilla/redisstore/v8 v8.1.0
@@ -20,11 +19,9 @@ require (
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/go-jose/go-jose/v4 v4.0.2 // indirect
-	github.com/go-redis/redis/v8 v8.3.3 // indirect
 	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/sendgrid/rest v2.6.9+incompatible // indirect
-	github.com/stretchr/testify v1.9.0 // indirect
 	go.opentelemetry.io/otel v0.13.0 // indirect
 	golang.org/x/crypto v0.31.0 // indirect
-	golang.org/x/sys v0.28.0 // indirect
+	golang.org/x/sys v0.34.0 // indirect
 )

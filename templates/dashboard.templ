@@ -14,7 +14,7 @@ templ Dashboard(name *string, email *string, provider *string) {
 			@UserInfo(name, email, provider)
 		</div>
 		<a
-			href={ templ.SafeURL(fmt.Sprintf("/v1/auth/%s/logout", *provider)) }
+			href={ templ.URL(fmt.Sprintf("/v1/auth/%s/logout", *provider)) }
 			class="mt-6 inline-block bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition"
 		>
 			Logout
