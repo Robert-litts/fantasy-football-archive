@@ -34,12 +34,25 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodGet, "/v1/dashboard/leagues/refresh",
 		app.requireAuthenticated(app.leaguesPageHandler))
 
+	//If we want to enforce auth for the frontend
+
 	router.HandlerFunc(http.MethodGet, "/v1/dashboard/index",
 		app.requireAuthenticated(app.leaguesIndexHandler))
 
 	router.HandlerFunc(http.MethodPost, "/v1/users", app.registerUserHandler)
 
 	router.HandlerFunc(http.MethodGet, "/login", app.loginTemplHandler)
+
+	// Routes for htmx
+	router.HandlerFunc(http.MethodGet, "/v1/leagues/:id/drafts", app.listDraftHandler)
+
+	router.HandlerFunc(http.MethodGet, "/drafts", app.draftsListHandler)
+	router.HandlerFunc(http.MethodGet, "/drafts/:id", app.draftBoardHandler)
+	router.HandlerFunc(http.MethodGet, "/draftboard", app.draftDisplayHandler)
+	router.HandlerFunc(http.MethodGet, "/teams", app.teamDisplayHandler)
+	router.HandlerFunc(http.MethodGet, "/teamboard", app.teamBoardDisplayHandler)
+	router.HandlerFunc(http.MethodGet, "/matchups", app.matchupTableHandler)
+	router.HandlerFunc(http.MethodGet, "/matchups/week/:week", app.matchupWeekHandler)
 
 	return app.recoverPanic(router)
 }

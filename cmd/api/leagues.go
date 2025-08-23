@@ -138,6 +138,12 @@ func (app *application) leaguesPageHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	leaguesPage, err := app.queries.GetAllLeagues(r.Context())
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
 	//app.logger.Info("Leagues fetched:", leagues)
 
 	// // Prepare template data
@@ -156,7 +162,7 @@ func (app *application) leaguesPageHandler(w http.ResponseWriter, r *http.Reques
 
 	// If it's an HTMX request, return just the table
 	if r.Header.Get("HX-Request") == "true" {
-		err := templates.LeaguesTable(leagues).Render(r.Context(), w)
+		err := templates.LeaguePage(leaguesPage).Render(r.Context(), w)
 		if err != nil {
 			app.serverErrorResponse(w, r, err)
 		}

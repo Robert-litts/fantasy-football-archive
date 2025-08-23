@@ -62,12 +62,6 @@ func (app *application) dashboardHandler(w http.ResponseWriter, r *http.Request)
 		providerPtr = &provider
 	}
 
-	// // Check if any required values are missing
-	// if namePtr == nil || emailPtr == nil || providerPtr == nil {
-	//     app.sessionRequiredResponse(w, r)
-	//     return
-	// }
-
 	// If it's an HTMX request, return just the user info partial
 	if r.Header.Get("HX-Request") == "true" {
 		err := templates.UserInfo(namePtr, emailPtr, providerPtr).Render(r.Context(), w)

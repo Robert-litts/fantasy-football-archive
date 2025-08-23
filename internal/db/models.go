@@ -9,6 +9,18 @@ import (
 	"time"
 )
 
+type Draft struct {
+	ID               int32         `json:"id"`
+	TeamID           int32         `json:"team_id"`
+	PlayerID         int32         `json:"player_id"`
+	OverallPick      int32         `json:"overallPick"`
+	RoundNum         int32         `json:"roundNum"`
+	RoundPick        int32         `json:"roundPick"`
+	KeeperStatus     bool          `json:"keeperStatus"`
+	BidAmount        int32         `json:"bidAmount"`
+	NominatingTeamID sql.NullInt32 `json:"nominating_team_id"`
+}
+
 type League struct {
 	ID          int32 `json:"id"`
 	LeagueId    int32 `json:"leagueId"`
@@ -18,33 +30,51 @@ type League struct {
 	NflWeek     int32 `json:"nflWeek"`
 }
 
+type Matchup struct {
+	ID          int32         `json:"id"`
+	Week        int32         `json:"week"`
+	HomeTeamID  sql.NullInt32 `json:"home_team_id"`
+	AwayTeamID  sql.NullInt32 `json:"away_team_id"`
+	HomeScore   float64       `json:"homeScore"`
+	AwayScore   float64       `json:"awayScore"`
+	IsPlayoff   bool          `json:"isPlayoff"`
+	MatchupType string        `json:"matchupType"`
+}
+
+type Player struct {
+	ID       int32          `json:"id"`
+	EspnId   int32          `json:"espnId"`
+	Name     string         `json:"name"`
+	Position sql.NullString `json:"position"`
+}
+
 type Team struct {
-	ID                     int32          `json:"id"`
-	LeagueID               int32          `json:"league_id"`
-	TeamId                 int32          `json:"teamId"`
-	Year                   int32          `json:"year"`
-	TeamAbbrv              string         `json:"teamAbbrv"`
-	TeamName               string         `json:"teamName"`
-	Owners                 sql.NullString `json:"owners"`
-	DivisionId             sql.NullString `json:"divisionId"`
-	DivisionName           sql.NullString `json:"divisionName"`
-	Wins                   sql.NullInt32  `json:"wins"`
-	Losses                 sql.NullInt32  `json:"losses"`
-	Ties                   sql.NullInt32  `json:"ties"`
-	PointsFor              sql.NullInt32  `json:"pointsFor"`
-	PointsAgainst          sql.NullInt32  `json:"pointsAgainst"`
-	WaiverRank             sql.NullInt32  `json:"waiverRank"`
-	Acquisitions           sql.NullInt32  `json:"acquisitions"`
-	AcquisitionBudgetSpent sql.NullInt32  `json:"acquisitionBudgetSpent"`
-	Drops                  sql.NullInt32  `json:"drops"`
-	Trades                 sql.NullInt32  `json:"trades"`
-	StreakType             sql.NullString `json:"streakType"`
-	StreakLength           sql.NullInt32  `json:"streakLength"`
-	Standing               sql.NullInt32  `json:"standing"`
-	FinalStanding          sql.NullInt32  `json:"finalStanding"`
-	DraftProjRank          sql.NullInt32  `json:"draftProjRank"`
-	PlayoffPct             sql.NullInt32  `json:"playoffPct"`
-	LogoUrl                sql.NullString `json:"logoUrl"`
+	ID                     int32  `json:"id"`
+	LeagueID               int32  `json:"league_id"`
+	TeamId                 int32  `json:"teamId"`
+	Year                   int32  `json:"year"`
+	TeamAbbrv              string `json:"teamAbbrv"`
+	TeamName               string `json:"teamName"`
+	Owners                 string `json:"owners"`
+	DivisionId             string `json:"divisionId"`
+	DivisionName           string `json:"divisionName"`
+	Wins                   int32  `json:"wins"`
+	Losses                 int32  `json:"losses"`
+	Ties                   int32  `json:"ties"`
+	PointsFor              int32  `json:"pointsFor"`
+	PointsAgainst          int32  `json:"pointsAgainst"`
+	WaiverRank             int32  `json:"waiverRank"`
+	Acquisitions           int32  `json:"acquisitions"`
+	AcquisitionBudgetSpent int32  `json:"acquisitionBudgetSpent"`
+	Drops                  int32  `json:"drops"`
+	Trades                 int32  `json:"trades"`
+	StreakType             string `json:"streakType"`
+	StreakLength           int32  `json:"streakLength"`
+	Standing               int32  `json:"standing"`
+	FinalStanding          int32  `json:"finalStanding"`
+	DraftProjRank          int32  `json:"draftProjRank"`
+	PlayoffPct             int32  `json:"playoffPct"`
+	LogoUrl                string `json:"logoUrl"`
 }
 
 type Token struct {

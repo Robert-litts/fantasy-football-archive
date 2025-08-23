@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  api:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    env_file:
+      - ".env"
+    volumes:
+      - ./templates:/templates
+      - ./internal/mailer/templates:/internal/mailer/templates
+    restart: unless-stopped
+    depends_on:
+      - redis-stack
+    networks:
+      - caddy_network
+
+  redis-stack:
+    image: redis/redis-stack:latest
+    container_name: redis-stack
+    ports:
+      - "6379:6379"
+      - "8010:8001"
+    networks:
+      - caddy_network
+
+  caddy:
+    build:
+      context: ./caddy
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/caddy_data:/data
+      - ./caddy/caddy_config:/config
+    env_file:
+      - ".env"
+    networks:
+      - caddy_network
+    depends_on:
+      - api
+
+networks:
+  caddy_network:
+    driver: bridge

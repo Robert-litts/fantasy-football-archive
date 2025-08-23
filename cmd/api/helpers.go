@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,7 +17,6 @@ import (
 	"time"
 
 	"github.com/Robert-litts/fantasy-football-archive/internal/validator"
-	"github.com/joho/godotenv"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -27,6 +27,15 @@ func (app *application) readIDParam(r *http.Request) (int64, error) {
 	id, err := strconv.ParseInt(params.ByName("id"), 10, 64)
 	if err != nil || id < 1 {
 		return 0, errors.New("invalid ID parameter")
+	}
+	return id, nil
+}
+
+func (app *application) readWeekParam(r *http.Request) (int64, error) {
+	params := httprouter.ParamsFromContext(r.Context())
+	id, err := strconv.ParseInt(params.ByName("week"), 10, 64)
+	if err != nil || id < 1 {
+		return 0, errors.New("invalid Week parameter")
 	}
 	return id, nil
 }
@@ -139,10 +148,15 @@ func (app *application) readIntQuery(qs url.Values, key string, v *validator.Val
 	return int32(i) // Return the valid int32 value
 }
 
-func loadEnvironment() (int, string, string, int, int, time.Duration, string, string) {
-	if err := godotenv.Load(); err != nil {
-		log.Fatalf("Failed to load the env vars: %v", err)
+func loadEnvironment() (string, int, string, string, int, int, time.Duration, string, string, string, string, int) {
+	// if err := godotenv.Load(); err != nil {
+	// 	log.Fatalf("Failed to load the env vars: %v", err)
+	// }
+	baseCallbackURL := os.Getenv("BASE_CALLBACK_URL")
+	if baseCallbackURL == "" {
+		log.Fatal("Base Callback URL environment variable not set")
 	}
+
 	port, err := strconv.Atoi(os.Getenv("PORT"))
 	if err != nil {
 		log.Fatal("PORT environment variable not set")
@@ -179,8 +193,15 @@ func loadEnvironment() (int, string, string, int, int, time.Duration, string, st
 		log.Fatal("SENDGRID_API_KEY environment variable is required")
 	}
 
+	redisAddr := os.Getenv("REDIS_ADDR")
+	redisPassword := os.Getenv("REDIS_PASSWORD")
+	redisDB, err := strconv.Atoi(os.Getenv("REDIS_DB"))
+	if err != nil {
+		log.Fatal("Failed to convert redisDB to int")
+	}
+
 	//return the env variables
-	return port, env, dsn, dbMaxOpenConns, dbMaxIdleConns, dbMaxIdleTime, sessionKey, sendGridKey
+	return baseCallbackURL, port, env, dsn, dbMaxOpenConns, dbMaxIdleConns, dbMaxIdleTime, sessionKey, sendGridKey, redisAddr, redisPassword, redisDB
 }
 
 // The background() helper accepts an arbitrary function as a parameter.
@@ -261,4 +282,28 @@ func (app *application) renderTemplate(w http.ResponseWriter, name string, data 
 	}
 
 	return nil
+}
+
+// NewNullString converts a string to sql.NullString
+func NewNullString(s string) sql.NullString {
+	if s == "" {
+		return sql.NullString{Valid: false}
+	}
+	return sql.NullString{String: s, Valid: true}
+}
+
+// ToNullString converts *string to sql.NullString
+func ToNullString(s *string) sql.NullString {
+	if s == nil {
+		return sql.NullString{Valid: false}
+	}
+	return sql.NullString{String: *s, Valid: true}
+}
+
+// FromNullString converts sql.NullString to *string
+func FromNullString(ns sql.NullString) *string {
+	if !ns.Valid {
+		return nil
+	}
+	return &ns.String
 }

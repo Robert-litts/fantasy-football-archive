@@ -35,3 +35,8 @@ Thumbs.db
 
 # env file
 .env
+
+#caddy data
+/caddy/caddy_config
+/caddy/caddy_data
+

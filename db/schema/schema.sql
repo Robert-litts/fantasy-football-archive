@@ -45,72 +45,68 @@ CREATE TABLE "teams" (
     "year" INTEGER NOT NULL,
     "teamAbbrv" VARCHAR(10) NOT NULL,
     "teamName" VARCHAR(255) NOT NULL,
-    "owners" VARCHAR(50),
-    "divisionId" VARCHAR(255),
-    "divisionName" VARCHAR(255),
-    "wins" INTEGER DEFAULT 0,
-    "losses" INTEGER DEFAULT 0,
-    "ties" INTEGER DEFAULT 0,
-    "pointsFor" INTEGER DEFAULT 0,
-    "pointsAgainst" INTEGER DEFAULT 0,
-    "waiverRank" INTEGER,
-    "acquisitions" INTEGER DEFAULT 0,
-    "acquisitionBudgetSpent" INTEGER DEFAULT 0,
-    "drops" INTEGER DEFAULT 0,
-    "trades" INTEGER DEFAULT 0,
-    "streakType" VARCHAR(50),
-    "streakLength" INTEGER,
-    "standing" INTEGER,
-    "finalStanding" INTEGER,
-    "draftProjRank" INTEGER,
-    "playoffPct" INTEGER,
-    "logoUrl" VARCHAR(255),
+    "owners" VARCHAR(50) NOT NULL,
+    "divisionId" VARCHAR(255) NOT NULL,
+    "divisionName" VARCHAR(255) NOT NULL,
+    "wins" INTEGER DEFAULT 0 NOT NULL,
+    "losses" INTEGER DEFAULT 0 NOT NULL,
+    "ties" INTEGER DEFAULT 0 NOT NULL,
+    "pointsFor" INTEGER DEFAULT 0 NOT NULL,
+    "pointsAgainst" INTEGER DEFAULT 0 NOT NULL,
+    "waiverRank" INTEGER NOT NULL,
+    "acquisitions" INTEGER DEFAULT 0 NOT NULL,
+    "acquisitionBudgetSpent" INTEGER DEFAULT 0 NOT NULL,
+    "drops" INTEGER DEFAULT 0 NOT NULL,
+    "trades" INTEGER DEFAULT 0 NOT NULL,
+    "streakType" VARCHAR(50) NOT NULL,
+    "streakLength" INTEGER NOT NULL,
+    "standing" INTEGER NOT NULL,
+    "finalStanding" INTEGER NOT NULL,
+    "draftProjRank" INTEGER NOT NULL,
+    "playoffPct" INTEGER NOT NULL,
+    "logoUrl" VARCHAR(255) NOT NULL,
     CONSTRAINT "uix_team_year" UNIQUE ("teamId", "year"),
     FOREIGN KEY ("league_id") REFERENCES "leagues"("id")
 );
 
 
--- CREATE TABLE players (
---     id INTEGER PRIMARY KEY,
---     espnId INTEGER UNIQUE NOT NULL,
---     name VARCHAR(255) NOT NULL,
---     position VARCHAR(50),
---     CONSTRAINT idx_player_name INDEX (name),
---     CONSTRAINT idx_player_position INDEX (position)
--- );
+CREATE TABLE players (
+    "id" INTEGER PRIMARY KEY,
+    "espnId" INTEGER UNIQUE NOT NULL,
+    "name" VARCHAR(255) NOT NULL,
+    "position" VARCHAR(50)
+);
 
--- CREATE TABLE drafts (
---     id INTEGER PRIMARY KEY AUTOINCREMENT,
---     team_id INTEGER NOT NULL,
---     player_id INTEGER NOT NULL,
---     overallPick INTEGER NOT NULL,
---     roundNum INTEGER NOT NULL,
---     roundPick INTEGER NOT NULL,
---     keeperStatus BOOLEAN DEFAULT FALSE,
---     bidAmount INTEGER DEFAULT NULL,
---     nominating_team_id INTEGER DEFAULT NULL,
---     CONSTRAINT uix_draft_pick UNIQUE (team_id, player_id),
---     CONSTRAINT idx_draft_team_player_year INDEX (team_id, player_id),
---     FOREIGN KEY (team_id) REFERENCES teams(id),
---     FOREIGN KEY (player_id) REFERENCES players(id),
---     FOREIGN KEY (nominating_team_id) REFERENCES teams(id)
--- );
+CREATE TABLE drafts (
+    "id" SERIAL PRIMARY KEY,
+    "team_id" INTEGER NOT NULL,
+    "player_id" INTEGER NOT NULL,
+    "overallPick" INTEGER NOT NULL,
+    "roundNum" INTEGER NOT NULL,
+    "roundPick" INTEGER NOT NULL,
+    "keeperStatus" BOOLEAN NOT NULL DEFAULT FALSE,
+    "bidAmount" INTEGER NOT NULL DEFAULT -1,
+    "nominating_team_id" INTEGER,
+    
+    CONSTRAINT "uix_draft_pick" UNIQUE ("team_id", "player_id"),
+    CONSTRAINT "fk_drafts_team" FOREIGN KEY ("team_id") REFERENCES teams("id"),
+    CONSTRAINT "fk_drafts_player" FOREIGN KEY ("player_id") REFERENCES "players"("id"),
+    CONSTRAINT "fk_drafts_nominating_team" FOREIGN KEY ("nominating_team_id") REFERENCES "teams"("id")
+);
 
--- CREATE TABLE matchups (
---     id INTEGER PRIMARY KEY AUTOINCREMENT,
---     week INTEGER NOT NULL,
---     home_team_id INTEGER,
---     away_team_id INTEGER,
---     homeScore FLOAT,
---     awayScore FLOAT,
---     isPlayoff BOOLEAN DEFAULT FALSE,
---     matchupType VARCHAR(50) DEFAULT 'NONE',
---     CONSTRAINT uix_matchup UNIQUE (week, home_team_id, away_team_id),
---     CONSTRAINT idx_matchup_team_week INDEX (home_team_id, away_team_id, week),
---     CONSTRAINT idx_matchup_week INDEX (week),
---     FOREIGN KEY (home_team_id) REFERENCES teams(id),
---     FOREIGN KEY (away_team_id) REFERENCES teams(id)
--- );
+CREATE TABLE matchups (
+    "id" SERIAL PRIMARY KEY,
+    "week" INTEGER NOT NULL,
+    "home_team_id" INTEGER,
+    "away_team_id" INTEGER,
+    "homeScore" FLOAT NOT NULL DEFAULT 0.0,
+    "awayScore" FLOAT NOT NULL DEFAULT 0.0,
+    "isPlayoff" BOOLEAN NOT NULL DEFAULT FALSE,
+    "matchupType" VARCHAR(50) NOT NULL DEFAULT 'NONE',
+    CONSTRAINT "uix_matchup" UNIQUE ("week", "home_team_id", "away_team_id"),
+    CONSTRAINT "fk_matchups_home_team" FOREIGN KEY ("home_team_id") REFERENCES teams("id"),
+    CONSTRAINT "fk_matchups_away_team" FOREIGN KEY ("away_team_id") REFERENCES teams("id")
+);
 
 -- CREATE TABLE activities (
 --     id INTEGER PRIMARY KEY AUTOINCREMENT,

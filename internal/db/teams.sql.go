@@ -7,7 +7,6 @@ package db
 
 import (
 	"context"
-	"database/sql"
 )
 
 const getTeamById = `-- name: GetTeamById :one
@@ -17,24 +16,24 @@ WHERE "id" = $1
 `
 
 type GetTeamByIdRow struct {
-	ID                     int32          `json:"id"`
-	LeagueID               int32          `json:"league_id"`
-	Year                   int32          `json:"year"`
-	TeamAbbrv              string         `json:"teamAbbrv"`
-	Owners                 sql.NullString `json:"owners"`
-	DivisionId             sql.NullString `json:"divisionId"`
-	DivisionName           sql.NullString `json:"divisionName"`
-	Wins                   sql.NullInt32  `json:"wins"`
-	Losses                 sql.NullInt32  `json:"losses"`
-	Ties                   sql.NullInt32  `json:"ties"`
-	PointsFor              sql.NullInt32  `json:"pointsFor"`
-	PointsAgainst          sql.NullInt32  `json:"pointsAgainst"`
-	WaiverRank             sql.NullInt32  `json:"waiverRank"`
-	Acquisitions           sql.NullInt32  `json:"acquisitions"`
-	AcquisitionBudgetSpent sql.NullInt32  `json:"acquisitionBudgetSpent"`
-	Drops                  sql.NullInt32  `json:"drops"`
-	Trades                 sql.NullInt32  `json:"trades"`
-	LogoUrl                sql.NullString `json:"logoUrl"`
+	ID                     int32  `json:"id"`
+	LeagueID               int32  `json:"league_id"`
+	Year                   int32  `json:"year"`
+	TeamAbbrv              string `json:"teamAbbrv"`
+	Owners                 string `json:"owners"`
+	DivisionId             string `json:"divisionId"`
+	DivisionName           string `json:"divisionName"`
+	Wins                   int32  `json:"wins"`
+	Losses                 int32  `json:"losses"`
+	Ties                   int32  `json:"ties"`
+	PointsFor              int32  `json:"pointsFor"`
+	PointsAgainst          int32  `json:"pointsAgainst"`
+	WaiverRank             int32  `json:"waiverRank"`
+	Acquisitions           int32  `json:"acquisitions"`
+	AcquisitionBudgetSpent int32  `json:"acquisitionBudgetSpent"`
+	Drops                  int32  `json:"drops"`
+	Trades                 int32  `json:"trades"`
+	LogoUrl                string `json:"logoUrl"`
 }
 
 func (q *Queries) GetTeamById(ctx context.Context, id int32) (GetTeamByIdRow, error) {
@@ -61,4 +60,78 @@ func (q *Queries) GetTeamById(ctx context.Context, id int32) (GetTeamByIdRow, er
 		&i.LogoUrl,
 	)
 	return i, err
+}
+
+const getTeamsByLeagueYear = `-- name: GetTeamsByLeagueYear :many
+SELECT 
+    "d"."owners", 
+    "d"."wins", 
+    "d"."losses", 
+    "d"."ties", 
+    "d"."pointsFor", 
+    "d"."pointsAgainst", 
+    "d"."waiverRank", 
+    "d"."acquisitions", 
+    "d"."acquisitionBudgetSpent", 
+    "d"."drops",
+    "d"."trades", 
+    "d"."streakLength",
+    "d"."finalStanding"
+FROM "teams" "d"
+JOIN "leagues" "l" ON "d"."league_id" = "l"."id"
+WHERE "l"."id" = $1
+ORDER BY "finalStanding" ASC
+`
+
+type GetTeamsByLeagueYearRow struct {
+	Owners                 string `json:"owners"`
+	Wins                   int32  `json:"wins"`
+	Losses                 int32  `json:"losses"`
+	Ties                   int32  `json:"ties"`
+	PointsFor              int32  `json:"pointsFor"`
+	PointsAgainst          int32  `json:"pointsAgainst"`
+	WaiverRank             int32  `json:"waiverRank"`
+	Acquisitions           int32  `json:"acquisitions"`
+	AcquisitionBudgetSpent int32  `json:"acquisitionBudgetSpent"`
+	Drops                  int32  `json:"drops"`
+	Trades                 int32  `json:"trades"`
+	StreakLength           int32  `json:"streakLength"`
+	FinalStanding          int32  `json:"finalStanding"`
+}
+
+func (q *Queries) GetTeamsByLeagueYear(ctx context.Context, id int32) ([]GetTeamsByLeagueYearRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTeamsByLeagueYear, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTeamsByLeagueYearRow
+	for rows.Next() {
+		var i GetTeamsByLeagueYearRow
+		if err := rows.Scan(
+			&i.Owners,
+			&i.Wins,
+			&i.Losses,
+			&i.Ties,
+			&i.PointsFor,
+			&i.PointsAgainst,
+			&i.WaiverRank,
+			&i.Acquisitions,
+			&i.AcquisitionBudgetSpent,
+			&i.Drops,
+			&i.Trades,
+			&i.StreakLength,
+			&i.FinalStanding,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

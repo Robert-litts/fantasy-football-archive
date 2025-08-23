@@ -1,0 +1,13 @@
+demboys.litts.xyz {
+	tls {
+		dns cloudflare {env.CF_API_TOKEN}
+        ca https://acme-staging-v02.api.letsencrypt.org/directory
+		resolvers 1.1.1.1
+	}
+	reverse_proxy api:4000 {
+        header_up Host {upstream_hostport}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}

@@ -3,6 +3,12 @@ SELECT "id", "leagueId", "year", "teamCount", "currentWeek", "nflWeek"
 FROM "leagues" 
 WHERE "id" = $1;
 
+-- name: GetAllLeagues :many
+SELECT "id", "leagueId", "year" 
+FROM "leagues" 
+ORDER BY "year" DESC;
+
+
 -- -- name: GetLeagues :many
 -- SELECT
 --     "id",

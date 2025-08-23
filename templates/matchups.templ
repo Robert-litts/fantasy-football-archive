@@ -1,0 +1,247 @@
+package templates
+
+import (
+	"fmt"
+	"github.com/Robert-litts/fantasy-football-archive/internal/db"
+	"strconv"
+)
+
+templ MatchupsTable(leagues []db.GetAllLeaguesRow, selectedLeagueID int, matchups []db.GetMatchupsByLeagueIdRow, activeWeek int32) {
+	<div class="space-y-6">
+		<div class="mb-6">
+			<label for="league-select" class="block text-sm font-medium text-gray-300 mb-2">Select League</label>
+			<select
+				id="league-select"
+				hx-get={ fmt.Sprintf("/matchups/week/%d", activeWeek) }
+				hx-target="#matchups-container"
+				hx-swap="innerHTML"
+				hx-trigger="change"
+				name="id"
+				class="bg-gray-700 border border-gray-600 text-gray-200 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-50 p-2.5"
+			>
+				for _, league := range leagues {
+					<option
+						value={ strconv.Itoa(int(league.ID)) }
+						selected?={ league.ID == int32(selectedLeagueID) }
+					>
+						Season { strconv.Itoa(int(league.Year)) } - League { strconv.Itoa(int(league.ID)) }
+					</option>
+				}
+			</select>
+		</div>
+		<div id="matchups-container">
+			@tabNavigation(matchups, activeWeek)
+			@tabContent(matchups)
+		</div>
+	</div>
+}
+
+templ WeekContent(matchups []db.GetMatchupsByLeagueIdRow, activeWeek int32) {
+	@tabNavigation(matchups, activeWeek)
+	@WeekTable(FilterMatchupsByWeek(matchups, activeWeek), int(getLastWeekOfSeason(matchups)))
+}
+
+templ tabContent(matchups []db.GetMatchupsByLeagueIdRow) {
+	<div id="week-content">
+		@WeekTable(FilterMatchupsByWeek(matchups, getUniqueWeeks(matchups)[0]), int(getLastWeekOfSeason(matchups)))
+	</div>
+}
+
+templ WeekTable(weekMatchups []db.GetMatchupsByLeagueIdRow, lastWeek int) {
+	<table class="min-w-full divide-y divide-gray-700 bg-gray-800 border border-gray-700 rounded-lg overflow-hidden">
+		<thead>
+			<tr>
+				<th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider border-b border-gray-700">Home Team</th>
+				<th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider border-b border-gray-700">Home Score</th>
+				<th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider border-b border-gray-700">Away Score</th>
+				<th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider border-b border-gray-700">Away Team</th>
+				<th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider border-b border-gray-700">Type</th>
+			</tr>
+		</thead>
+		<tbody class="bg-gray-900 divide-y divide-gray-700">
+			if len(weekMatchups) > 0 {
+				for _, matchup := range weekMatchups {
+					<tr class="hover:bg-gray-800 transition-colors">
+						<td
+							class={ "px-6 py-4 whitespace-nowrap text-sm text-gray-300 border-x border-gray-700", }
+						>
+							<div class="flex items-center gap-2">
+								if !matchup.HomeTeamID.Valid {
+									<span>BYE</span>
+								} else {
+									{ matchup.HomeTeamName }
+									if matchup.HomeScore > matchup.AwayScore && isChampionshipMatch(matchup, lastWeek) {
+										<span class="text-yellow-500">🏆</span>
+									}
+								}
+							</div>
+							if matchup.HomeTeamID.Valid {
+								<div class="text-xs text-gray-400">{ matchup.HomeTeamOwners }</div>
+							}
+						</td>
+						<td
+							class={ "px-6 py-4 whitespace-nowrap text-sm text-gray-300 border-x border-gray-700",
+                            templ.KV("bg-green-900/50", matchup.HomeScore > matchup.AwayScore && !isChampionshipMatch(matchup, lastWeek) && matchup.HomeTeamID.Valid && matchup.AwayTeamID.Valid),
+    templ.KV("bg-red-900/50", matchup.HomeScore < matchup.AwayScore && matchup.HomeTeamID.Valid && matchup.AwayTeamID.Valid),
+    templ.KV("bg-yellow-500/50", matchup.HomeScore > matchup.AwayScore && isChampionshipMatch(matchup, lastWeek) && matchup.HomeTeamID.Valid && matchup.AwayTeamID.Valid),
+    templ.KV("bg-gray-800", !matchup.HomeTeamID.Valid || !matchup.AwayTeamID.Valid) }
+						>
+							if !matchup.HomeTeamID.Valid || !matchup.AwayTeamID.Valid {
+								<span class="bg-grey-500/50">-</span>
+							} else {
+								{ strconv.FormatFloat(matchup.HomeScore, 'f', 2, 64) }
+							}
+						</td>
+						<td
+							class={ "px-6 py-4 whitespace-nowrap text-sm text-gray-300 border-x border-gray-700",
+                            templ.KV("bg-green-900/50", matchup.AwayScore > matchup.HomeScore && !isChampionshipMatch(matchup, lastWeek) && matchup.HomeTeamID.Valid && matchup.AwayTeamID.Valid),
+    templ.KV("bg-red-900/50", matchup.AwayScore < matchup.HomeScore && matchup.HomeTeamID.Valid && matchup.AwayTeamID.Valid),
+    templ.KV("bg-yellow-500/50", matchup.AwayScore > matchup.HomeScore && isChampionshipMatch(matchup, lastWeek) && matchup.HomeTeamID.Valid && matchup.AwayTeamID.Valid),
+    templ.KV("bg-gray-800", !matchup.HomeTeamID.Valid || !matchup.AwayTeamID.Valid) }
+						>
+							if !matchup.HomeTeamID.Valid || !matchup.AwayTeamID.Valid {
+								<span class="bg-grey-500/50">-</span>
+							} else {
+								{ strconv.FormatFloat(matchup.AwayScore, 'f', 2, 64) }
+							}
+						</td>
+						<td
+							class={ "px-6 py-4 whitespace-nowrap text-sm text-gray-300 border-x border-gray-700", }
+						>
+							<div class="flex items-center gap-2">
+								if !matchup.AwayTeamID.Valid {
+									<span>BYE</span>
+								} else {
+									{ matchup.AwayTeamName }
+									if matchup.AwayScore > matchup.HomeScore && isChampionshipMatch(matchup, lastWeek) {
+										<span class="text-yellow-500">🏆</span>
+									}
+								}
+							</div>
+							if matchup.AwayTeamID.Valid {
+								<div class="text-xs text-gray-400">{ matchup.AwayTeamOwners }</div>
+							}
+						</td>
+						<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300 border-x border-gray-700">
+							if !matchup.HomeTeamID.Valid || !matchup.AwayTeamID.Valid {
+								<span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-700 text-gray-300">BYE Week</span>
+							} else if matchup.IsPlayoff {
+								if isChampionshipMatch(matchup, lastWeek) {
+									<span class="px-2 py-1 text-xs font-medium rounded-full bg-yellow-900/50 text-yellow-400">Championship!</span>
+								} else if matchup.MatchupType == "WINNERS_BRACKET" {
+									<span class="px-2 py-1 text-xs font-medium rounded-full bg-blue-900 text-white-200">Playoffs Round { strconv.Itoa(playoffRound(int(matchup.Week), lastWeek)) }</span>
+								} else {
+									<span class="px-2 py-1 text-xs font-medium rounded-full bg-red-900 text-red-200">{ matchup.MatchupType }</span>
+								}
+							} else {
+								<span>Regular Season</span>
+							}
+						</td>
+					</tr>
+				}
+			}
+		</tbody>
+	</table>
+}
+
+func getUniqueWeeks(matchups []db.GetMatchupsByLeagueIdRow) []int32 {
+	weekMap := make(map[int32]bool)
+	var weeks []int32
+	for _, matchup := range matchups {
+		if !weekMap[matchup.Week] {
+			weekMap[matchup.Week] = true
+			weeks = append(weeks, matchup.Week)
+		}
+	}
+	return weeks
+}
+
+func FilterMatchupsByWeek(matchups []db.GetMatchupsByLeagueIdRow, week int32) []db.GetMatchupsByLeagueIdRow {
+	var filtered []db.GetMatchupsByLeagueIdRow
+	for _, matchup := range matchups {
+		if matchup.Week == week {
+			filtered = append(filtered, matchup)
+		}
+	}
+	return filtered
+}
+
+templ tabButton(week int32, activeWeek int32, isPlayoff bool, isChampionship bool, leagueID int) {
+	<button
+		class={
+			"px-4 py-2 text-sm rounded-t-lg transition-colors border-2 border-transparent flex items-center gap-2",
+			templ.KV("bg-gray-800 text-white border-blue-500 !border-b-0", week == activeWeek),
+			templ.KV("text-gray-400 hover:text-white hover:bg-gray-800", week != activeWeek),
+			templ.KV("font-bold", isPlayoff),
+			templ.KV("text-yellow-400", isPlayoff && week != activeWeek),
+			templ.KV("bg-gradient-to-b from-gray-800 to-gray-900", isPlayoff),
+		}
+		hx-get={ fmt.Sprintf("/matchups/week/%d?id=%d", week, leagueID) }
+		hx-target="#matchups-container"
+		hx-trigger="click"
+		role="tab"
+		aria-selected={ strconv.FormatBool(week == activeWeek) }
+		aria-controls={ "week-" + strconv.Itoa(int(week)) }
+	>
+		Week { strconv.Itoa(int(week)) }
+		if isChampionship {
+			<svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 text-yellow-500" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor">
+				<path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 14.25a7.454 7.454 0 0 0 .981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 0 0 7.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 0 0 2.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 0 1 2.916.52 6.003 6.003 0 0 1-5.395 4.972m0 0a6.726 6.726 0 0 1-2.749 1.35m0 0a6.772 6.772 0 0 1-3.044 0"></path>
+			</svg>
+		}
+	</button>
+}
+
+templ tabNavigation(matchups []db.GetMatchupsByLeagueIdRow, activeWeek int32) {
+	<div class="flex space-x-1 border-b border-gray-700 mb-4" role="tablist">
+		for _, matchup := range getUniqueWeeks(matchups) {
+			@tabButton(
+				matchup,
+				activeWeek,
+				isPlayoffWeek(matchups, matchup),
+				isChampionshipWeek(matchups, matchup),
+				int(matchups[0].LeagueId),
+			)
+		}
+	</div>
+}
+
+func getLastWeekOfSeason(matchups []db.GetMatchupsByLeagueIdRow) int32 {
+	lastWeek := int32(0)
+	for _, m := range matchups {
+		if m.Week > lastWeek {
+			lastWeek = m.Week
+		}
+	}
+	return lastWeek
+}
+
+func isPlayoffWeek(matchups []db.GetMatchupsByLeagueIdRow, week int32) bool {
+	for _, m := range matchups {
+		if m.Week == week && m.IsPlayoff {
+			return true
+		}
+	}
+	return false
+}
+
+func isChampionshipWeek(matchups []db.GetMatchupsByLeagueIdRow, week int32) bool {
+	if !isPlayoffWeek(matchups, week) {
+		return false
+	}
+	return week == getLastWeekOfSeason(matchups)
+}
+
+func isChampionshipMatch(matchup db.GetMatchupsByLeagueIdRow, lastWeek int) bool {
+	return matchup.Week == int32(lastWeek) && matchup.MatchupType == "WINNERS_BRACKET"
+}
+
+func playoffRound(currentWeek, lastWeek int) int {
+	if lastWeek-currentWeek == 2 {
+		return 1
+	}
+	if lastWeek-currentWeek == 1 {
+		return 2
+	}
+	return 0
+}

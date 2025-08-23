@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"os"
 	"strings"
 	"sync"
 
@@ -198,7 +200,7 @@ func (a *application) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	// 	a.serverErrorResponse(w, r, err)
 	// }
 
-	http.Redirect(w, r, "/v1/dashboard", http.StatusSeeOther)
+	http.Redirect(w, r, "/v1/dashboard/index", http.StatusSeeOther)
 }
 
 func (a *application) HandleLogout(w http.ResponseWriter, r *http.Request) {
@@ -206,8 +208,21 @@ func (a *application) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	session.Options.MaxAge = -1
 	session.Save(r, w)
 
-	err := a.writeJSON(w, http.StatusOK, envelope{"message": "Successfully logged out"}, nil)
-	if err != nil {
-		a.serverErrorResponse(w, r, err)
-	}
+	// err := a.writeJSON(w, http.StatusOK, envelope{"message": "Successfully logged out"}, nil)
+	// if err != nil {
+	// 	a.serverErrorResponse(w, r, err)
+	// }
+
+	domain := os.Getenv("AUTH0_DOMAIN")
+	clientID := os.Getenv("AUTH0_CLIENT_ID")
+	postLogoutRedirectURI := "http://localhost:4000/"
+
+	logoutURL := fmt.Sprintf(
+		"https://%s/oidc/logout?client_id=%s&post_logout_redirect_uri=%s",
+		domain,
+		url.QueryEscape(clientID),
+		url.QueryEscape(postLogoutRedirectURI),
+	)
+
+	http.Redirect(w, r, logoutURL, http.StatusSeeOther)
 }

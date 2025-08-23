@@ -9,6 +9,41 @@ import (
 	"context"
 )
 
+const getAllLeagues = `-- name: GetAllLeagues :many
+SELECT "id", "leagueId", "year" 
+FROM "leagues" 
+ORDER BY "year" DESC
+`
+
+type GetAllLeaguesRow struct {
+	ID       int32 `json:"id"`
+	LeagueId int32 `json:"leagueId"`
+	Year     int32 `json:"year"`
+}
+
+func (q *Queries) GetAllLeagues(ctx context.Context) ([]GetAllLeaguesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAllLeagues)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAllLeaguesRow
+	for rows.Next() {
+		var i GetAllLeaguesRow
+		if err := rows.Scan(&i.ID, &i.LeagueId, &i.Year); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getLeagueById = `-- name: GetLeagueById :one
 SELECT "id", "leagueId", "year", "teamCount", "currentWeek", "nflWeek" 
 FROM "leagues" 

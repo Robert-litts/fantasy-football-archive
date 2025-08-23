@@ -12,8 +12,10 @@ import (
 
 	"github.com/Robert-litts/fantasy-football-archive/internal/db"
 	"github.com/Robert-litts/fantasy-football-archive/internal/mailer"
+	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/sessions"
 	_ "github.com/lib/pq"
+	"github.com/rbcervilla/redisstore/v8"
 )
 
 const version = "1.0.0"
@@ -42,6 +44,11 @@ type config struct {
 		maxIdleConns int
 		maxIdleTime  time.Duration
 	}
+	redis struct {
+		addr     string
+		password string
+		db       int
+	}
 	auth struct {
 		baseCallbackURL string
 		providers       map[string]ProviderConfig
@@ -57,11 +64,12 @@ type application struct {
 	mailer       *mailer.Mailer
 	wg           sync.WaitGroup
 	authManager  *AuthManager
+	redisClient  *redis.Client
 }
 
 func main() {
 	// Load environment variables
-	port, env, dsn, dbMaxOpenConns, dbMaxIdleConns, dbMaxIdleTime, sessionKey, sendGridKey := loadEnvironment()
+	baseCallbackURL, port, env, dsn, dbMaxOpenConns, dbMaxIdleConns, dbMaxIdleTime, sessionKey, sendGridKey, redisAddr, redisPassword, redisDB := loadEnvironment()
 
 	var cfg config
 
@@ -74,7 +82,10 @@ func main() {
 	flag.DurationVar(&cfg.db.maxIdleTime, "db-max-idle-time", dbMaxIdleTime, "PostgreSQL max connection idle time")
 	flag.Parse()
 
-	cfg.auth.baseCallbackURL = fmt.Sprintf("http://localhost:%d", port)
+	cfg.redis.addr = redisAddr
+	cfg.redis.password = redisPassword
+	cfg.redis.db = redisDB
+	cfg.auth.baseCallbackURL = baseCallbackURL
 	cfg.auth.providers = map[string]ProviderConfig{
 		"auth0": {
 			Name:            "auth0",
@@ -89,6 +100,30 @@ func main() {
 	}
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	redisClient, err := openRedis(cfg)
+	if err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
+	}
+	defer redisClient.Close()
+
+	logger.Info("redis connection established")
+
+	store, err := redisstore.NewRedisStore(context.Background(), redisClient)
+	if err != nil {
+		logger.Error("failed to create Redis session store", "error", err)
+		os.Exit(1)
+	}
+
+	// Configure session options
+	store.KeyPrefix("session_")
+	store.Options(sessions.Options{
+		Path:     "/",
+		MaxAge:   3600 * 24, // 24 hours
+		HttpOnly: true,
+		Secure:   env == "production", // Only secure in production
+	})
 
 	dbConn, err := openDB(cfg)
 	if err != nil {
@@ -108,9 +143,10 @@ func main() {
 		config:       cfg,
 		logger:       logger,
 		queries:      queries,
-		sessionStore: sessions.NewCookieStore([]byte(cfg.sessionKey)),
+		sessionStore: store,
 		mailer:       mailer.New(sendGridKey, "FFArchive <robert@litts.org>", logger),
 		authManager:  NewAuthManager(),
+		redisClient:  redisClient,
 	}
 
 	// Initialize the auth providers
@@ -159,4 +195,23 @@ func openDB(cfg config) (*sql.DB, error) {
 
 	// Return the sql.DB connection pool.
 	return db, nil
+}
+
+func openRedis(cfg config) (*redis.Client, error) {
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     cfg.redis.addr,
+		Password: cfg.redis.password,
+		DB:       cfg.redis.db,
+	})
+
+	// Test the connection
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := rdb.Ping(ctx).Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to Redis: %w", err)
+	}
+
+	return rdb, nil
 }
