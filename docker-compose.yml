@@ -47,6 +47,20 @@ services:
     depends_on:
       - api
 
+  db:
+    image: postgres:17
+    container_name: postgres-db
+    restart: always
+    env_file:
+      - ".env"
+    volumes:
+      - ./postgres/data:/var/lib/postgresql/data
+      - ./postgres_data/:/docker-entrypoint-initdb.d/
+    ports:
+      - "5432:5432"
+    networks:
+      - caddy_network
+
 networks:
   caddy_network:
     driver: bridge

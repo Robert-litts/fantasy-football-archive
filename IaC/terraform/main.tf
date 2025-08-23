@@ -31,6 +31,10 @@ data "hcloud_ssh_key" "default" {
   name = "robbie@Robbie-Dell-XPS"
 }
 
+data "hcloud_ssh_key" "EOS-Desktop" {
+  name = "robbie@EOS-Desktop"
+}
+
 resource "hcloud_firewall" "football-firewall" {
   name = "football-firewall"
   rule {
@@ -76,7 +80,7 @@ resource "hcloud_server" "from_snapshot" {
   image       = data.hcloud_image.packer_snapshot.id
   server_type = "cx22"
 firewall_ids = [hcloud_firewall.football-firewall.id]
-  ssh_keys = [ data.hcloud_ssh_key.default.id ]
+  ssh_keys = [ data.hcloud_ssh_key.default.name, data.hcloud_ssh_key.EOS-Desktop.name  ]
   public_net {
     ipv4_enabled = true
     ipv6_enabled = true
