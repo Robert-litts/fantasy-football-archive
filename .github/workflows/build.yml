@@ -10,7 +10,7 @@ on:
 # Set environment variables available to all steps
 env:
   GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }} # GitHub Container Registry token (set in repository secrets)
-  CONTAINER_NAME: robertlitts/fantasy-football-archive # Image name to publish (all lowercase)
+  CONTAINER_NAME: robert-litts/fantasy-football-archive # Image name to publish (all lowercase)
   USER_NAME: Robert-litts # GitHub username used for GHCR authentication
 
 jobs:
