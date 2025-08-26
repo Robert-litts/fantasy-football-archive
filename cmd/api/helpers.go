@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/Robert-litts/fantasy-football-archive/internal/validator"
+	"github.com/joho/godotenv"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -149,9 +150,9 @@ func (app *application) readIntQuery(qs url.Values, key string, v *validator.Val
 }
 
 func loadEnvironment() (string, int, string, string, int, int, time.Duration, string, string, string, string, int) {
-	// if err := godotenv.Load(); err != nil {
-	// 	log.Fatalf("Failed to load the env vars: %v", err)
-	// }
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env found, using system .env variables")
+	}
 	baseCallbackURL := os.Getenv("BASE_CALLBACK_URL")
 	if baseCallbackURL == "" {
 		log.Fatal("Base Callback URL environment variable not set")

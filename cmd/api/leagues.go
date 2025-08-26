@@ -138,11 +138,11 @@ func (app *application) leaguesPageHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	leaguesPage, err := app.queries.GetAllLeagues(r.Context())
-	if err != nil {
-		app.serverErrorResponse(w, r, err)
-		return
-	}
+	// leaguesPage, err := app.queries.GetAllLeagues(r.Context())
+	// if err != nil {
+	// 	app.serverErrorResponse(w, r, err)
+	// 	return
+	// }
 
 	//app.logger.Info("Leagues fetched:", leagues)
 
@@ -161,8 +161,17 @@ func (app *application) leaguesPageHandler(w http.ResponseWriter, r *http.Reques
 	// }
 
 	// If it's an HTMX request, return just the table
+
+	// if r.Header.Get("HX-Request") == "true" {
+	// 	err := templates.LeaguePage(leaguesPage).Render(r.Context(), w)
+	// 	if err != nil {
+	// 		app.serverErrorResponse(w, r, err)
+	// 	}
+	// 	return
+	// }
+
 	if r.Header.Get("HX-Request") == "true" {
-		err := templates.LeaguePage(leaguesPage).Render(r.Context(), w)
+		err := templates.LeaguesTable(leagues).Render(r.Context(), w)
 		if err != nil {
 			app.serverErrorResponse(w, r, err)
 		}
@@ -214,6 +223,7 @@ func (app *application) leaguesRefreshHandler(w http.ResponseWriter, r *http.Req
 }
 
 func (app *application) leaguesIndexHandler(w http.ResponseWriter, r *http.Request) {
-	component := templates.LeaguesPage()
+	component := templates.Index()
+	//component := templates.LeaguesPage()
 	component.Render(r.Context(), w)
 }

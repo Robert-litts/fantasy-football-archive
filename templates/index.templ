@@ -17,7 +17,7 @@ templ Index() {
 			@Navigation()
 			<main
 				class="flex-grow container mx-auto px-4 py-8"
-				hx-get="/v1/dashboard/leagues"
+				hx-get="/home"
 				hx-trigger="load"
 			>
 				{ children... }
@@ -39,9 +39,18 @@ templ Navigation() {
 	<nav class="bg-gray-800 shadow">
 		<div class="container mx-auto px-4">
 			<ul class="flex space-x-6 py-3">
+				<li style="float:right">
+					<a
+						hx-get="/home"
+						hx-target="main"
+						class="hover:text-blue-600 cursor-pointer"
+					>
+						Home
+					</a>
+				</li>
 				<li>
 					<a
-						hx-get="/v1/dashboard/leagues"
+						hx-get="/leagues"
 						hx-target="main"
 						class="hover:text-blue-600 cursor-pointer"
 					>
@@ -77,19 +86,11 @@ templ Navigation() {
 				</li>
 				<li>
 					<a
-						hx-get="/standings"
+						hx-get="/stats"
 						hx-target="main"
 						class="hover:text-blue-600 cursor-pointer"
 					>
-						Standings
-					</a>
-				</li>
-				<li style="float:right">
-					<a
-						class="active"
-						href="#about"
-					>
-						Hello!
+						Stats
 					</a>
 				</li>
 			</ul>
@@ -100,7 +101,7 @@ templ Navigation() {
 templ Footer() {
 	<footer class="bg-gray-800 text-white mt-auto">
 		<div class="container mx-auto px-4 py-4 text-center">
-			<p>© 2025 Fantasy Football History</p>
+			<p>© 2025 Fantasy Football Archive, R. Litts</p>
 		</div>
 	</footer>
 }
