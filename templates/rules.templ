@@ -1,0 +1,512 @@
+package templates
+
+
+templ Rules() {
+	<!DOCTYPE html>
+	<html lang="en">
+	<head>
+		<meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+		<title>League Rules</title>
+		<script src="https://cdn.tailwindcss.com"></script>
+	</head>
+	<body class="bg-gray-100 min-h-screen">
+		<div class="container mx-auto px-4 py-8">
+			<!-- Header -->
+			<div class="text-center mb-12">
+				<h1 class="text-4xl font-bold text-white-900 mb-2">Fantasy Football League Rules</h1>
+				<h2 class="text-2xl text-white-600 mb-4">League Constitution</h2>
+			</div>
+
+			<!-- Rules Content -->
+			<div class="max-w-4xl mx-auto space-y-8">
+				
+				<!-- Section 1: League Management -->
+				<div class="bg-gray-800 rounded-lg shadow-lg p-8">
+					<h3 class="text-2xl font-bold text-white-900 mb-6">Section 1: League Management</h3>
+					<div class="prose max-w-none">
+						
+					<!-- Positional Breakdown -->
+						<div class="mb-6">
+							<h4 class="text-xl font-semibold text-white-800 mb-3">1.1 App and Rosters</h4>
+							<div class="text-white-700 leading-relaxed mb-4">
+								All league activities are handled through Sleeper app. Rosters are comprised as follows:
+							</div>
+							
+							<!-- Starting Lineup -->
+							<div class="bg-black-50 rounded-lg p-4 mb-4">
+								<h5 class="font-semibold text-white-800 mb-3">Starting Lineup</h5>
+								<div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+									<div class="bg-white rounded-md px-3 py-2 text-center border border-red-200">
+										<span class="font-medium text-red-800">QB</span>
+									</div>
+									<div class="bg-white rounded-md px-3 py-2 text-center border border-green-200">
+										<span class="font-medium text-green-800">RB</span>
+									</div>
+									<div class="bg-white rounded-md px-3 py-2 text-center border border-green-200">
+										<span class="font-medium text-green-800">RB</span>
+									</div>
+									<div class="bg-white rounded-md px-3 py-2 text-center border border-blue-200">
+										<span class="font-medium text-blue-800">WR</span>
+									</div>
+									<div class="bg-white rounded-md px-3 py-2 text-center border border-blue-200">
+										<span class="font-medium text-blue-800">WR</span>
+									</div>
+									<div class="bg-white rounded-md px-3 py-2 text-center border border-blue-200">
+										<span class="font-medium text-blue-800">WR</span>
+									</div>
+									<div class="bg-white rounded-md px-3 py-2 text-center border border-orange-200">
+										<span class="font-medium text-orange-800">TE</span>
+									</div>
+									<div class="bg-white rounded-md px-3 py-2 text-center border border-gray-300">
+										<span class="font-medium text-gray-700">FLEX</span>
+										<div class="text-xs text-gray-500">WR/RB/TE</div>
+									</div>
+									<div class="bg-white rounded-md px-3 py-2 text-center border border-red-200">
+										<span class="font-medium text-red-800">K</span>
+									</div>
+									<div class="bg-white rounded-md px-3 py-2 text-center border border-indigo-200">
+										<span class="font-medium text-indigo-800">DEF</span>
+									</div>
+								</div>
+							</div>
+
+						<!-- Waiver Wire System -->
+						<div class="mb-6">
+							<h4 class="text-xl font-semibold text-white-800 mb-3">1.2 Waiver Wire System</h4>
+							<div class="text-white-700 leading-relaxed">
+								<ul class="list-disc list-inside space-y-2">
+									<li>FAAB Waiver wire system</li>
+									<li>Each team will begin the season with $100</li>
+									<li>$0 bids are allowed</li>
+									<li>Waivers clear Wednesday at 3AM Eastern</li>
+									<li>Players stay on the waivers for 2 days</li>
+								</ul>
+							</div>
+						</div>
+					</div>
+				</div>
+                </div>
+
+				<!-- Section 2: Drafting -->
+				<div class="bg-gray-800 rounded-lg shadow-lg p-8">
+					<h3 class="text-2xl font-bold text-white mb-6">Section 2: Drafting</h3>
+					<div class="prose max-w-none">
+						
+						<!-- Keepers -->
+						<div class="mb-6">
+							<h4 class="text-xl font-semibold text-gray-200 mb-3">2.1 Keepers</h4>
+							<div class="text-gray-300 leading-relaxed mb-6">
+								Each team is eligible to keep two players from their team's previous season roster, with the following stipulations:
+							</div>
+							<div class="text-white-700 leading-relaxed">
+								<ul class="list-disc list-inside space-y-2">
+									<li>Each team can keep up to two players every year</li>
+									<li>A keeper's draft position will be two rounds earlier than where they were drafted the previous year. For example, if a player was drafted in the 4th round the previous year, they will occupy a 2nd round slot in the year they are kept</li>
+									<li>Players cannot be kept if they were drafted in the first or second round the previous year</li>
+									<li>The original draft position is always used to determine keeper draft positions. For example, if a player was originally drafted, then dropped, and subsequently picked up and kept by another team, they will retain their original draft position when determining keeper rounds per #2</li>
+									<li>If a player was undrafted & picked-up during the season, they will be treated as a 10th round pick for keeper purposes, meaning they will occupy an 8th round slot in the following year's draft</li>
+									<li>Players picked up after the regular season cannot be kept</li>
+									<li>Players picked up during the playoffs (or after you were statistically eliminated if you didn't make the playoffs) are ineligible to be kept</li>
+									<li>Keeper picks must be submitted at least 48 hours before draft day and time. No keeper decisions will be allowed after that</li>
+									<li>Extreme or rare circumstances, such as a season-ending injury in the 48-hour period, will be discussed on a case-by-case basis</li>
+									<li>A keeper can only be kept for 2 consecutive years; after that, they cannot be kept by the same owner</li>
+								</ul>
+							</div>
+						</div>
+
+						<!-- Draft Order -->
+						<div class="mb-6">
+							<h4 class="text-xl font-semibold text-white-800 mb-3">2.2 Draft Order</h4>
+							<div class="text-white-700 leading-relaxed mb-4">
+								The draft order each year will be a snake draft. Each year, one league member (excluding the commissioner) will be responsible for determining the draft order. This responsibility will rotate annually among all league members, so each member will have a turn to set the draft order.
+							</div>
+							<div class="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+								<div class="text-gray-700 italic">
+									<strong>Example:</strong> For the 2024 season, one member horrendously failed at this task by randomly assigning each league member a Men's 10km Olympic swimmer, but failed to take into consideration that the race took place at 1:30AM Eastern and several players would get COVID and not start or finish the race. Fortunately, other members of the league managed to salvage this error and determine an appropriate draft order.
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Section 3: Scoring System -->
+				<div class="bg-gray-800 rounded-lg shadow-lg p-8 border border-gray-700">
+					<h3 class="text-2xl font-bold text-white mb-6">Section 3: Scoring System</h3>
+					<div class="prose max-w-none">
+						<div class="mb-6">
+							<h4 class="text-xl font-semibold text-gray-200 mb-3">3.1 Scoring System</h4>
+							<div class="text-gray-300 leading-relaxed mb-6">
+								The league follows a 0.5 PPR scoring system. The scoring system will never change without a majority league vote.
+							</div>
+							
+							<!-- Offensive Scoring -->
+							<div class="mb-6">
+								<h5 class="text-lg font-semibold text-gray-200 mb-4">Offensive Scoring</h5>
+								<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+									<div class="bg-gray-700 rounded-lg p-4 border border-gray-600">
+										<h6 class="font-medium text-blue-300 mb-3">Passing</h6>
+										<div class="space-y-1 text-sm text-gray-300">
+											<div class="flex justify-between">
+												<span>Passing Yards</span>
+												<span class="text-green-300">0.04 per yard</span>
+											</div>
+											<div class="flex justify-between">
+												<span>Passing Touchdown</span>
+												<span class="text-green-300">4 points</span>
+											</div>
+											<div class="flex justify-between">
+												<span>2-Point Conversion</span>
+												<span class="text-green-300">2 points</span>
+											</div>
+											<div class="flex justify-between">
+												<span>Interception</span>
+												<span class="text-red-300">-2 points</span>
+											</div>
+										</div>
+									</div>
+									
+									<div class="bg-gray-700 rounded-lg p-4 border border-gray-600">
+										<h6 class="font-medium text-green-300 mb-3">Rushing</h6>
+										<div class="space-y-1 text-sm text-gray-300">
+											<div class="flex justify-between">
+												<span>Rushing Yards</span>
+												<span class="text-green-300">0.1 per yard</span>
+											</div>
+											<div class="flex justify-between">
+												<span>Rushing Touchdown</span>
+												<span class="text-green-300">6 points</span>
+											</div>
+											<div class="flex justify-between">
+												<span>2-Point Conversion</span>
+												<span class="text-green-300">2 points</span>
+											</div>
+										</div>
+									</div>
+									
+									<div class="bg-gray-700 rounded-lg p-4 border border-gray-600">
+										<h6 class="font-medium text-purple-300 mb-3">Receiving</h6>
+										<div class="space-y-1 text-sm text-gray-300">
+											<div class="flex justify-between">
+												<span>Reception</span>
+												<span class="text-green-300">0.5 points</span>
+											</div>
+											<div class="flex justify-between">
+												<span>Receiving Yards</span>
+												<span class="text-green-300">0.1 per yard</span>
+											</div>
+											<div class="flex justify-between">
+												<span>Receiving Touchdown</span>
+												<span class="text-green-300">6 points</span>
+											</div>
+											<div class="flex justify-between">
+												<span>2-Point Conversion</span>
+												<span class="text-green-300">2 points</span>
+											</div>
+										</div>
+									</div>
+									
+									<div class="bg-gray-700 rounded-lg p-4 border border-gray-600">
+										<h6 class="font-medium text-orange-300 mb-3">Misc Offense</h6>
+										<div class="space-y-1 text-sm text-gray-300">
+											<div class="flex justify-between">
+												<span>Fumble Lost</span>
+												<span class="text-red-300">-2 points</span>
+											</div>
+											<div class="flex justify-between">
+												<span>Fumble Recovery</span>
+												<span class="text-green-300">2 points</span>
+											</div>
+											<div class="flex justify-between">
+												<span>Fumble Recovery TD</span>
+												<span class="text-green-300">6 points</span>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+							
+							<!-- Kicking Scoring -->
+							<div class="mb-6">
+								<h5 class="text-lg font-semibold text-gray-200 mb-4">Kicking</h5>
+								<div class="bg-gray-700 rounded-lg p-4 border border-gray-600">
+									<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+										<div>
+											<h6 class="font-medium text-red-300 mb-3">Field Goals</h6>
+											<div class="space-y-1 text-sm text-gray-300">
+												<div class="flex justify-between">
+													<span>0-19 yards</span>
+													<span class="text-green-300">3 points</span>
+												</div>
+												<div class="flex justify-between">
+													<span>20-29 yards</span>
+													<span class="text-green-300">3 points</span>
+												</div>
+												<div class="flex justify-between">
+													<span>30-39 yards</span>
+													<span class="text-green-300">3 points</span>
+												</div>
+												<div class="flex justify-between">
+													<span>40-49 yards</span>
+													<span class="text-green-300">4 points</span>
+												</div>
+												<div class="flex justify-between">
+													<span>50+ yards</span>
+													<span class="text-green-300">5 points</span>
+												</div>
+												<div class="flex justify-between">
+													<span>FG Miss</span>
+													<span class="text-red-300">-1 point</span>
+												</div>
+											</div>
+										</div>
+										<div>
+											<h6 class="font-medium text-red-300 mb-3">Extra Points</h6>
+											<div class="space-y-1 text-sm text-gray-300">
+												<div class="flex justify-between">
+													<span>Extra Point Made</span>
+													<span class="text-green-300">1 point</span>
+												</div>
+												<div class="flex justify-between">
+													<span>Extra Point Miss</span>
+													<span class="text-red-300">-1 point</span>
+												</div>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+							
+							<!-- Defensive/ST Scoring -->
+							<div class="mb-6">
+								<h5 class="text-lg font-semibold text-gray-200 mb-4">Defense/Special Teams</h5>
+								<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+									<div class="bg-gray-700 rounded-lg p-4 border border-gray-600">
+										<h6 class="font-medium text-indigo-300 mb-3">Defensive Stats</h6>
+										<div class="space-y-1 text-sm text-gray-300">
+											<div class="flex justify-between">
+												<span>Sack</span>
+												<span class="text-green-300">1 point</span>
+											</div>
+											<div class="flex justify-between">
+												<span>Interception</span>
+												<span class="text-green-300">2 points</span>
+											</div>
+											<div class="flex justify-between">
+												<span>Fumble Recovery</span>
+												<span class="text-green-300">1 point</span>
+											</div>
+											<div class="flex justify-between">
+												<span>Forced Fumble</span>
+												<span class="text-green-300">1 point</span>
+											</div>
+											<div class="flex justify-between">
+												<span>Defensive TD</span>
+												<span class="text-green-300">6 points</span>
+											</div>
+											<div class="flex justify-between">
+												<span>Safety</span>
+												<span class="text-green-300">2 points</span>
+											</div>
+											<div class="flex justify-between">
+												<span>Blocked Kick</span>
+												<span class="text-green-300">4 points</span>
+											</div>
+										</div>
+									</div>
+									
+									<div class="bg-gray-700 rounded-lg p-4 border border-gray-600">
+										<h6 class="font-medium text-indigo-300 mb-3">Special Teams</h6>
+										<div class="space-y-1 text-sm text-gray-300">
+											<div class="flex justify-between">
+												<span>ST Touchdown</span>
+												<span class="text-green-300">6 points</span>
+											</div>
+											<div class="flex justify-between">
+												<span>ST Fumble Recovery</span>
+												<span class="text-green-300">1 point</span>
+											</div>
+											<div class="flex justify-between">
+												<span>ST Forced Fumble</span>
+												<span class="text-green-300">1 point</span>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+							
+							<!-- Points Allowed -->
+							<div class="mb-6">
+								<h5 class="text-lg font-semibold text-gray-200 mb-4">Points Allowed</h5>
+								<div class="bg-gray-700 rounded-lg p-4 border border-gray-600">
+									<div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm text-gray-300">
+										<div class="flex justify-between">
+											<span>0 points</span>
+											<span class="text-green-300">5 pts</span>
+										</div>
+										<div class="flex justify-between">
+											<span>1-6 points</span>
+											<span class="text-green-300">4 pts</span>
+										</div>
+										<div class="flex justify-between">
+											<span>7-13 points</span>
+											<span class="text-green-300">3 pts</span>
+										</div>
+										<div class="flex justify-between">
+											<span>14-20 points</span>
+											<span class="text-green-300">1 pt</span>
+										</div>
+										<div class="flex justify-between">
+											<span>21-27 points</span>
+											<span class="text-yellow-300">0 pts</span>
+										</div>
+										<div class="flex justify-between">
+											<span>28-34 points</span>
+											<span class="text-red-300">-1 pt</span>
+										</div>
+										<div class="flex justify-between">
+											<span>35+ points</span>
+											<span class="text-red-300">-3 pts</span>
+										</div>
+									</div>
+								</div>
+							</div>
+							
+							<!-- Yards Allowed -->
+							<div class="mb-6">
+								<h5 class="text-lg font-semibold text-gray-200 mb-4">Yards Allowed</h5>
+								<div class="bg-gray-700 rounded-lg p-4 border border-gray-600">
+									<div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm text-gray-300">
+										<div class="flex justify-between">
+											<span>0-100 yards</span>
+											<span class="text-green-300">5 pts</span>
+										</div>
+										<div class="flex justify-between">
+											<span>100-199 yards</span>
+											<span class="text-green-300">3 pts</span>
+										</div>
+										<div class="flex justify-between">
+											<span>200-299 yards</span>
+											<span class="text-green-300">2 pts</span>
+										</div>
+										<div class="flex justify-between">
+											<span>350-399 yards</span>
+											<span class="text-red-300">-1 pt</span>
+										</div>
+										<div class="flex justify-between">
+											<span>400-449 yards</span>
+											<span class="text-red-300">-3 pts</span>
+										</div>
+										<div class="flex justify-between">
+											<span>450-499 yards</span>
+											<span class="text-red-300">-5 pts</span>
+										</div>
+										<div class="flex justify-between">
+											<span>500-549 yards</span>
+											<span class="text-red-300">-6 pts</span>
+										</div>
+										<div class="flex justify-between">
+											<span>550+ yards</span>
+											<span class="text-red-300">-7 pts</span>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Section 4: Postseason -->
+				<div class="bg-gray-800 rounded-lg shadow-lg p-8">
+					<h3 class="text-2xl font-bold text-white-900 mb-6">Section 4: Postseason</h3>
+					<div class="prose max-w-none">
+						
+						<!-- Playoffs -->
+						<div class="mb-6">
+							<h4 class="text-xl font-semibold text-white-800 mb-3">4.1 Playoffs</h4>
+							<div class="text-white-700 leading-relaxed">
+								<ul class="list-disc list-inside space-y-2">
+									<li>At the end of the season, 6 teams will make the playoffs</li>
+									<li>Top two regular season teams receive a first-round Bye</li>
+									<li>The first round of playoffs will commence in week 15</li>
+									<li>Each round will last one week</li>
+									<li>Week 18 will not be used</li>
+								</ul>
+							</div>
+						</div>
+
+						<!-- Seeding Tiebreakers -->
+						<div class="mb-6">
+							<h4 class="text-xl font-semibold text-white-800 mb-3">4.2 Seeding Tiebreakers</h4>
+							<div class="text-white-700 leading-relaxed mb-4">
+								Tiebreakers are determined per the following rules:
+							</div>
+							<div class="text-white-700 leading-relaxed">
+								<ol class="list-decimal list-inside space-y-2">
+									<li>Overall Record</li>
+									<li>Points For</li>
+									<li>Higher Points Against</li>
+									<li>Coin Toss</li>
+								</ol>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Section 5: Replace Managers -->
+				<div class="bg-gray-800 rounded-lg shadow-lg p-8">
+					<h3 class="text-2xl font-bold text-white-900 mb-6">Section 5: Replace Managers</h3>
+					<div class="prose max-w-none">
+						
+						<!-- Removing Managers -->
+						<div class="mb-6">
+							<h4 class="text-xl font-semibold text-white-800 mb-3">5.1 Removing Managers</h4>
+							<div class="text-white-700 leading-relaxed">
+								Short of continuously failing to set a valid lineup, or confirmed collusion, no manager can be removed against their will. Participation, through the league chat, trade offers, and the waiver wire, is strongly encouraged but generally not grounds for removal.
+							</div>
+						</div>
+
+						<!-- Replacing Managers -->
+						<div class="mb-6">
+							<h4 class="text-xl font-semibold text-white-800 mb-3">5.2 Replacing Managers</h4>
+							<div class="text-white-700 leading-relaxed">
+								When a manager needs to be replaced, the commissioner will try to find a suitable candidate with some connection to at least a portion of the existing managers.
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Section 6: League Finances -->
+				<div class="bg-gray-800 rounded-lg shadow-lg p-8">
+					<h3 class="text-2xl font-bold text-whitey-900 mb-6">Section 6: League Finances</h3>
+					<div class="prose max-w-none">
+						
+						<!-- League Dues -->
+						<div class="mb-6">
+							<h4 class="text-xl font-semibold text-white-800 mb-3">6.1 League Dues</h4>
+							<div class="text-white-700 leading-relaxed">
+								League dues are set at $100. Dues are required before the draft, otherwise your team will be set to auto-draft.
+							</div>
+						</div>
+
+						<!-- Payout -->
+						<div class="mb-6">
+							<h4 class="text-xl font-semibold text-white-800 mb-3">6.2 Payout</h4>
+							<div class="text-white-700 leading-relaxed mb-4">
+								League payout is structured as follows:
+							</div>
+							<div class="bg-green-50 p-4 rounded-lg">
+								<ul class="list-disc list-inside space-y-2 text-gray-700">
+									<li><strong>1st place:</strong> $900</li>
+									<li><strong>2nd place:</strong> $100</li>
+								</ul>
+							</div>
+						</div>
+					</div>
+				</div>
+
+			</div>
+		</div>
+	</body>
+	</html>
+}

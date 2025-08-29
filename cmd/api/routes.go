@@ -54,6 +54,8 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodGet, "/matchups", app.matchupTableHandler)
 	router.HandlerFunc(http.MethodGet, "/home", app.homeHandler)
 	router.HandlerFunc(http.MethodGet, "/stats", app.statsHandler)
+	router.HandlerFunc(http.MethodGet, "/rules", app.rulesHandler)
+
 	router.HandlerFunc(http.MethodGet, "/matchups/week/:week", app.matchupWeekHandler)
 
 	return app.recoverPanic(router)
