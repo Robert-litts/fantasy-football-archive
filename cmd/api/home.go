@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"time"
+	_ "time/tzdata"
 
 	"github.com/Robert-litts/fantasy-football-archive/templates"
 )
