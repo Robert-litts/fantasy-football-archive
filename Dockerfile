@@ -4,7 +4,7 @@ FROM golang:1.23.3-alpine AS builder
 WORKDIR /app
 
 # Install required build tools
-RUN apk add --no-cache make
+RUN apk add --no-cache make tzdata
 
 # Install templ
 RUN go install github.com/a-h/templ/cmd/templ@latest
