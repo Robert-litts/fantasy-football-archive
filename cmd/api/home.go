@@ -37,9 +37,16 @@ func get_draft_time(leagueID string) (time.Time, error) {
 		return time.Time{}, fmt.Errorf("no drafts found for league %s", leagueID)
 	}
 
-	// Unix (milliseconds) to local time
-	localTime := time.UnixMilli(drafts[0].StartTime).Local()
-	return localTime, nil
+	// Unix (milliseconds) to UTC
+	utcTime := time.UnixMilli(drafts[0].StartTime).UTC()
+	loc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		return time.Time{}, fmt.Errorf("failed to load timezone: %w", err)
+	}
+
+	// Convert to New York time
+	nyTime := utcTime.In(loc)
+	return nyTime, nil
 }
 
 func (app *application) homeHandler(w http.ResponseWriter, r *http.Request) {
