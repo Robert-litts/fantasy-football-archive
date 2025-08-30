@@ -4,7 +4,7 @@ import (
 	"io/fs"
 	"net/http"
 
-	"github.com/Robert-litts/fantasy-football-archive/internal/embed"
+	embed "github.com/Robert-litts/fantasy-football-archive/internal"
 	"github.com/julienschmidt/httprouter"
 )
 
