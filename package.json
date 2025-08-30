@@ -1,0 +1,12 @@
+{
+    "name": "fantasy-football-archive",
+    "version": "1.0.0",
+    "description": "Fantasy Football Archive CSS Build",
+    "scripts": {
+        "build-css": "tailwindcss -i ./assets/css/input.css -o ./internal/static/css/styles.css --minify",
+        "watch-css": "tailwindcss -i ./assets/css/input.css -o ./internal/static/css/styles.css --watch"
+    },
+    "devDependencies": {
+        "tailwindcss": "^3.4.17"
+    }
+}

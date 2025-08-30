@@ -69,3 +69,14 @@ terraform.rc
 
 #Postgres SQL Init Files
 /postgres/init/*
+
+# Node.js dependencies
+node_modules/
+package-lock.json
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Generated static assets
+internal/static/css/styles.css
+internal/static/js/htmx.min.js

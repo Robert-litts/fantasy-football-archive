@@ -53,7 +53,8 @@ type config struct {
 		baseCallbackURL string
 		providers       map[string]ProviderConfig
 	}
-	sessionKey string
+	sessionKey      string
+	sleeperLeagueID string
 }
 
 type application struct {
@@ -69,7 +70,7 @@ type application struct {
 
 func main() {
 	// Load environment variables
-	baseCallbackURL, port, env, dsn, dbMaxOpenConns, dbMaxIdleConns, dbMaxIdleTime, sessionKey, sendGridKey, redisAddr, redisPassword, redisDB := loadEnvironment()
+	sleeperLeagueID, baseCallbackURL, port, env, dsn, dbMaxOpenConns, dbMaxIdleConns, dbMaxIdleTime, sessionKey, sendGridKey, redisAddr, redisPassword, redisDB := loadEnvironment()
 
 	var cfg config
 
@@ -82,6 +83,7 @@ func main() {
 	flag.DurationVar(&cfg.db.maxIdleTime, "db-max-idle-time", dbMaxIdleTime, "PostgreSQL max connection idle time")
 	flag.Parse()
 
+	cfg.sleeperLeagueID = sleeperLeagueID
 	cfg.redis.addr = redisAddr
 	cfg.redis.password = redisPassword
 	cfg.redis.db = redisDB
