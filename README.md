@@ -1,6 +1,6 @@
 # Fantasy Football Archive
 
-![it exists](league-does-exist.png)
+![it exists](./internal/static/images/league-does-not-exist.png)
 
 Go-based RESTful API for accessing historical fantasy football data extracted from ESPN and stored locally in a PostgresSQL database. The API lets you query your past fantasy football league data, including league standings, team performance, drafts, and more.
 

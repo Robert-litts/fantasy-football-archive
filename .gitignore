@@ -78,5 +78,5 @@ yarn-debug.log*
 yarn-error.log*
 
 # Generated static assets
-internal/static/css/styles.css
-internal/static/js/htmx.min.js
+internal/static/css/*
+internal/static/js/*
