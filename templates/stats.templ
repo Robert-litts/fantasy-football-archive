@@ -48,10 +48,16 @@ templ Stats(pageData appstats.PageData) {
 			</div>
 
 			if len(pageData.HighlightCards) > 0 {
-				<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-					for _, card := range pageData.HighlightCards {
-						@StatsHighlightCard(card)
-					}
+				<div class="space-y-4">
+					<div>
+						<h2 class="text-2xl font-bold text-white">League superlatives</h2>
+						<p class="mt-1 text-sm text-gray-400">Single-week extremes and all-time leaders pulled from every season in the archive.</p>
+					</div>
+					<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+						for _, card := range pageData.HighlightCards {
+							@StatsHighlightCard(card)
+						}
+					</div>
 				</div>
 			}
 
