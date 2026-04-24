@@ -2,7 +2,7 @@ package main
 
 import (
 	"database/sql"
-	"fmt"
+	"errors"
 	"net/http"
 
 	"github.com/Robert-litts/fantasy-football-archive/internal/validator"
@@ -46,7 +46,6 @@ func (app *application) teamDisplayHandler(w http.ResponseWriter, r *http.Reques
 		app.serverErrorResponse(w, r, err)
 		return
 	}
-	fmt.Println("league id: ", leagues[0].ID)
 
 	// Default to first league if none selected
 	selectedLeagueID := leagues[0].ID
@@ -55,7 +54,6 @@ func (app *application) teamDisplayHandler(w http.ResponseWriter, r *http.Reques
 	if id != -1 {
 		selectedLeagueID = id
 	}
-	fmt.Println(selectedLeagueID)
 
 	// Get teams for the selected league
 	teams, err := app.queries.GetTeamsByLeagueYear(r.Context(), selectedLeagueID)
@@ -63,16 +61,32 @@ func (app *application) teamDisplayHandler(w http.ResponseWriter, r *http.Reques
 		app.serverErrorResponse(w, r, err)
 		return
 	}
-	fmt.Println(teams)
 
-	// If this is an HTMX request, only render the dashboard portion
-	if r.Header.Get("HX-Request") == "true" {
-		err = templates.Teams(teams, leagues, int(selectedLeagueID)).Render(r.Context(), w)
-	} else {
-		// Otherwise render the full page
-		err = templates.Teams(teams, leagues, int(selectedLeagueID)).Render(r.Context(), w)
+	err = templates.Teams(teams, leagues, int(selectedLeagueID)).Render(r.Context(), w)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) apiListLeagueTeamsHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := app.readIDParam(r)
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
 	}
 
+	teams, err := app.queries.GetTeamsByLeagueYear(r.Context(), int32(id))
+	if err != nil {
+		app.logger.Error("database error", "error", err)
+		if err == sql.ErrNoRows {
+			app.notFoundResponse(w, r)
+			return
+		}
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"teams": teams}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
@@ -113,6 +127,43 @@ func (app *application) teamBoardDisplayHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 	err = app.writeJSON(w, http.StatusOK, envelope{"teams": teams}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) appTeamsTableFragmentHandler(w http.ResponseWriter, r *http.Request) {
+	v := validator.New()
+	qs := r.URL.Query()
+	id := app.readIntQuery(qs, "id", v)
+	if !v.Valid() || id < 1 {
+		app.badRequestResponse(w, r, errors.New("valid id query parameter is required"))
+		return
+	}
+
+	leagues, err := app.queries.GetAllLeagues(r.Context())
+	if err != nil {
+		app.logger.Error("database error", "error", err)
+		if err == sql.ErrNoRows {
+			app.notFoundResponse(w, r)
+			return
+		}
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	teams, err := app.queries.GetTeamsByLeagueYear(r.Context(), id)
+	if err != nil {
+		app.logger.Error("database error", "error", err)
+		if err == sql.ErrNoRows {
+			app.notFoundResponse(w, r)
+			return
+		}
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	err = templates.TeamsTable(teams, leagues, int(id)).Render(r.Context(), w)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}

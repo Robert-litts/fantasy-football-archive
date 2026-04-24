@@ -26,15 +26,19 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodGet, "/api/v1/healthcheck", app.healthcheckHandler)
 	router.HandlerFunc(http.MethodGet, "/api/v1/leagues", app.listLeaguesHandler)
 	router.HandlerFunc(http.MethodGet, "/api/v1/leagues/:id", app.showLeagueHandler)
+	router.HandlerFunc(http.MethodGet, "/api/v1/leagues/:id/teams", app.apiListLeagueTeamsHandler)
 	router.HandlerFunc(http.MethodGet, "/api/v1/leagues/:id/teams/:id", app.showTeamHandler)
-	router.HandlerFunc(http.MethodGet, "/api/v1/leagues/:id/drafts", app.listDraftHandler)
+	router.HandlerFunc(http.MethodGet, "/api/v1/leagues/:id/drafts", app.apiListLeagueDraftsHandler)
+	router.HandlerFunc(http.MethodGet, "/api/v1/leagues/:id/matchups", app.apiListLeagueMatchupsHandler)
 
 	// Compatibility aliases for the original API routes.
 	router.HandlerFunc(http.MethodGet, "/v1/healthcheck", app.healthcheckHandler)
 	router.HandlerFunc(http.MethodGet, "/v1/leagues", app.listLeaguesHandler)
 	router.HandlerFunc(http.MethodGet, "/v1/leagues/:id", app.showLeagueHandler)
+	router.HandlerFunc(http.MethodGet, "/v1/leagues/:id/teams", app.apiListLeagueTeamsHandler)
 	router.HandlerFunc(http.MethodGet, "/v1/leagues/:id/teams/:id", app.showTeamHandler)
 	router.HandlerFunc(http.MethodGet, "/v1/leagues/:id/drafts", app.listDraftHandler)
+	router.HandlerFunc(http.MethodGet, "/v1/leagues/:id/matchups", app.apiListLeagueMatchupsHandler)
 	//router.HandlerFunc(http.MethodPost, "/v1/users", app.registerUserHandler)
 	router.HandlerFunc(http.MethodGet, "/login", app.loginTemplHandler)
 
@@ -55,22 +59,22 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodGet, "/app/home", app.requireAuthenticated(app.homeHandler))
 	router.HandlerFunc(http.MethodGet, "/app/leagues", app.requireAuthenticated(app.leaguesPageHandler))
 	router.HandlerFunc(http.MethodGet, "/app/teams", app.requireAuthenticated(app.teamDisplayHandler))
-	router.HandlerFunc(http.MethodGet, "/app/matchups", app.requireAuthenticated(app.matchupTableHandler))
-	router.HandlerFunc(http.MethodGet, "/app/drafts", app.requireAuthenticated(app.draftsListHandler))
+	router.HandlerFunc(http.MethodGet, "/app/matchups", app.requireAuthenticated(app.appMatchupsTableFragmentHandler))
+	router.HandlerFunc(http.MethodGet, "/app/drafts", app.requireAuthenticated(app.appDraftsPageHandler))
 	router.HandlerFunc(http.MethodGet, "/app/drafts/:id", app.requireAuthenticated(app.draftBoardHandler))
-	router.HandlerFunc(http.MethodGet, "/app/draftboard", app.requireAuthenticated(app.draftDisplayHandler))
+	router.HandlerFunc(http.MethodGet, "/app/draftboard", app.requireAuthenticated(app.appDraftBoardFragmentHandler))
 	router.HandlerFunc(http.MethodGet, "/app/stats", app.requireAuthenticated(app.statsHandler))
 	router.HandlerFunc(http.MethodGet, "/app/rules", app.requireAuthenticated(app.rulesHandler))
 
 	// App fragment routes render HTMX partials.
 	router.HandlerFunc(http.MethodGet, "/app/fragments/user-info", app.requireAuthenticated(app.dashboardHandler))
 	router.HandlerFunc(http.MethodGet, "/app/fragments/leagues-table", app.requireAuthenticated(app.leaguesPageHandler))
-	router.HandlerFunc(http.MethodGet, "/app/fragments/teams-table", app.requireAuthenticated(app.teamBoardDisplayHandler))
-	router.HandlerFunc(http.MethodGet, "/app/fragments/matchups-table", app.requireAuthenticated(app.matchupTableHandler))
-	router.HandlerFunc(http.MethodGet, "/app/fragments/matchups-week/:week", app.requireAuthenticated(app.matchupWeekHandler))
-	router.HandlerFunc(http.MethodGet, "/app/fragments/draft-page", app.requireAuthenticated(app.draftsListHandler))
-	router.HandlerFunc(http.MethodGet, "/app/fragments/draft-board", app.requireAuthenticated(app.draftDisplayHandler))
-	router.HandlerFunc(http.MethodGet, "/app/fragments/draft-board/:id", app.requireAuthenticated(app.draftBoardHandler))
+	router.HandlerFunc(http.MethodGet, "/app/fragments/teams-table", app.requireAuthenticated(app.appTeamsTableFragmentHandler))
+	router.HandlerFunc(http.MethodGet, "/app/fragments/matchups-table", app.requireAuthenticated(app.appMatchupsTableFragmentHandler))
+	router.HandlerFunc(http.MethodGet, "/app/fragments/matchups-week/:week", app.requireAuthenticated(app.appMatchupsWeekFragmentHandler))
+	router.HandlerFunc(http.MethodGet, "/app/fragments/draft-page", app.requireAuthenticated(app.appDraftsPageHandler))
+	router.HandlerFunc(http.MethodGet, "/app/fragments/draft-board", app.requireAuthenticated(app.appDraftBoardFragmentHandler))
+	router.HandlerFunc(http.MethodGet, "/app/fragments/draft-board/:id", app.requireAuthenticated(app.appDraftBoardByIDFragmentHandler))
 
 	// Compatibility aliases for the original browser routes.
 	router.HandlerFunc(http.MethodGet, "/v1/dashboard",
