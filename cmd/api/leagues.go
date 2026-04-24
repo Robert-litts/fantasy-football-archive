@@ -85,7 +85,7 @@ func (app *application) listLeaguesHandler(w http.ResponseWriter, r *http.Reques
 		Column9:     sortVal,
 	}
 
-	app.logger.Info("League Params", baseParams)
+	app.logger.Info("League Params", "params", baseParams)
 	var leagues []db.League
 	var err error
 

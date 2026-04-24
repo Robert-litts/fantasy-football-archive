@@ -63,8 +63,8 @@ func TestBuildPageDataAggregatesOverviewAndPlayoffs(t *testing.T) {
 	}
 
 	alice := requireOwnerTotal(t, pageData.OwnerTotals, "Alice")
-	if alice.Titles != 1 || alice.PlayoffAppearances != 1 || alice.Wins != 10 {
-		t.Fatalf("Alice owner total = %#v, want titles=1 appearances=1 wins=10", alice)
+	if alice.Titles != 1 || alice.PlayoffAppearances != 1 || alice.Wins != 10 || !nearlyEqual(alice.AveragePointsFor, 1600, 0.001) {
+		t.Fatalf("Alice owner total = %#v, want titles=1 appearances=1 wins=10 averagePointsFor=1600", alice)
 	}
 
 	bob := requireOwnerTotal(t, pageData.OwnerTotals, "Bob")
@@ -82,18 +82,38 @@ func TestBuildPageDataAggregatesOverviewAndPlayoffs(t *testing.T) {
 	}
 
 	playoffAlice := requirePlayoffOwnerTotal(t, pageData.PlayoffOwnerTotals, "Alice")
-	if playoffAlice.Appearances != 1 || playoffAlice.Wins != 2 || playoffAlice.Losses != 0 || playoffAlice.Titles != 1 {
-		t.Fatalf("Alice playoff total = %#v, want appearances=1 wins=2 losses=0 titles=1", playoffAlice)
+	if playoffAlice.Appearances != 1 || playoffAlice.FinalsAppearances != 1 || playoffAlice.Wins != 2 || playoffAlice.Losses != 0 || playoffAlice.Titles != 1 || !nearlyEqual(playoffAlice.TitleConversion, 1, 0.001) {
+		t.Fatalf("Alice playoff total = %#v, want appearances=1 finals=1 wins=2 losses=0 titles=1 conversion=1", playoffAlice)
 	}
 
 	playoffBob := requirePlayoffOwnerTotal(t, pageData.PlayoffOwnerTotals, "Bob")
-	if playoffBob.Appearances != 1 || playoffBob.Wins != 0 || playoffBob.Losses != 2 {
-		t.Fatalf("Bob playoff total = %#v, want appearances=1 wins=0 losses=2", playoffBob)
+	if playoffBob.Appearances != 1 || playoffBob.FinalsAppearances != 1 || playoffBob.Wins != 0 || playoffBob.Losses != 2 || !nearlyEqual(playoffBob.TitleConversion, 0, 0.001) {
+		t.Fatalf("Bob playoff total = %#v, want appearances=1 finals=1 wins=0 losses=2 conversion=0", playoffBob)
 	}
 
 	playoffHighest := requireHighlightCard(t, pageData.PlayoffHighlightCards, "Highest playoff score")
 	if playoffHighest.Owner != "Alice" || !nearlyEqual(playoffHighest.Value, 130, 0.001) {
 		t.Fatalf("highest playoff score = %#v, want owner Alice and value 130", playoffHighest)
+	}
+
+	finalsLeader := requireHighlightCard(t, pageData.PlayoffHighlightCards, "Most finals appearances")
+	if finalsLeader.Owner != "Alice" || !nearlyEqual(finalsLeader.Value, 1, 0.001) {
+		t.Fatalf("most finals appearances = %#v, want owner Alice and value 1", finalsLeader)
+	}
+
+	bestConversion := requireHighlightCard(t, pageData.PlayoffHighlightCards, "Best title conversion")
+	if bestConversion.Owner != "Alice" || !nearlyEqual(bestConversion.Value, 100, 0.001) {
+		t.Fatalf("best title conversion = %#v, want owner Alice and value 100", bestConversion)
+	}
+
+	championshipHighest := requireHighlightCard(t, pageData.ChampionshipHighlightCards, "Highest championship score")
+	if championshipHighest.Owner != "Alice" || !nearlyEqual(championshipHighest.Value, 130, 0.001) {
+		t.Fatalf("highest championship score = %#v, want owner Alice and value 130", championshipHighest)
+	}
+
+	championshipClosest := requireHighlightCard(t, pageData.ChampionshipHighlightCards, "Closest championship win")
+	if championshipClosest.Owner != "Alice" || !nearlyEqual(championshipClosest.Value, 5, 0.001) {
+		t.Fatalf("closest championship win = %#v, want owner Alice and value 5", championshipClosest)
 	}
 
 	if len(pageData.Champions) != 1 {

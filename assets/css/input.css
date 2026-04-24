@@ -1,3 +1,89 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+	.site-banner {
+		position: relative;
+		overflow: hidden;
+		border-bottom: 1px solid rgba(248, 113, 113, 0.35);
+		background:
+			linear-gradient(135deg, rgba(127, 29, 29, 0.45), rgba(0, 0, 0, 0) 45%),
+			linear-gradient(90deg, #7f1d1d 0%, #dc2626 42%, #ef4444 55%, #991b1b 100%);
+	}
+
+	.site-banner::before {
+		content: "";
+		position: absolute;
+		inset: 0;
+		background:
+			linear-gradient(110deg, transparent 0%, transparent 58%, rgba(255, 255, 255, 0.12) 58%, rgba(255, 255, 255, 0.12) 61%, transparent 61%),
+			linear-gradient(110deg, transparent 0%, transparent 72%, rgba(17, 24, 39, 0.28) 72%, rgba(17, 24, 39, 0.28) 100%);
+		pointer-events: none;
+	}
+
+	.site-banner-mark {
+		position: relative;
+		display: flex;
+		align-items: center;
+		gap: 0.85rem;
+	}
+
+	.site-banner-slash {
+		height: 2.6rem;
+		width: 0.9rem;
+		flex: 0 0 auto;
+		transform: skewX(-18deg);
+		border-radius: 0.1rem;
+		background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.72) 100%);
+		box-shadow: 0 0 18px rgba(255, 255, 255, 0.18);
+	}
+
+	.site-banner-title {
+		position: relative;
+		margin: 0;
+		font-family: "Arial Narrow", "Liberation Sans Narrow", "Nimbus Sans Narrow", Arial, sans-serif;
+		font-size: clamp(2rem, 5vw, 3.4rem);
+		font-style: italic;
+		font-weight: 800;
+		line-height: 0.92;
+		letter-spacing: 0.05em;
+		text-transform: uppercase;
+		text-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
+	}
+
+	.site-banner-kicker {
+		margin: 0;
+		font-size: 0.72rem;
+		font-weight: 700;
+		letter-spacing: 0.28em;
+		text-transform: uppercase;
+		color: rgba(254, 242, 242, 0.78);
+	}
+
+	.site-banner-chip {
+		position: relative;
+		align-self: flex-start;
+		margin: 0;
+		border: 1px solid rgba(255, 255, 255, 0.22);
+		background: rgba(17, 24, 39, 0.3);
+		padding: 0.45rem 0.8rem;
+		font-size: 0.72rem;
+		font-weight: 700;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: rgba(255, 255, 255, 0.88);
+		backdrop-filter: blur(4px);
+	}
+
+	@media (min-width: 640px) {
+		.site-banner-slash {
+			height: 3.1rem;
+			width: 1rem;
+		}
+
+		.site-banner-chip {
+			align-self: auto;
+		}
+	}
+}

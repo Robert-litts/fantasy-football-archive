@@ -18,10 +18,10 @@ func TestStatsTemplateRendersTabbedSectionsAndFixtureData(t *testing.T) {
 			{Label: "Highest weekly score", Value: 160, ValueText: "points", Owner: "Alice", TeamName: "Alice Alpha", Opponent: "Dave Delta", Year: 2023, Week: 3, Detail: "Regular season"},
 		},
 		OwnerTotals: []appstats.OwnerTotal{
-			{Rank: 1, Owner: "Alice", Seasons: 2, Wins: 20, Losses: 8, Ties: 0, Titles: 1, PlayoffAppearances: 2, PointsFor: 3200, PointsAgainst: 2900, WinPct: 0.714},
+			{Rank: 1, Owner: "Alice", Seasons: 2, Wins: 20, Losses: 8, Ties: 0, Titles: 1, PlayoffAppearances: 2, PointsFor: 3200, PointsAgainst: 2900, AveragePointsFor: 1600, WinPct: 0.714},
 		},
 		RegularSeasonOwnerTotals: []appstats.OwnerTotal{
-			{Rank: 1, Owner: "Alice", Seasons: 2, Wins: 20, Losses: 8, Ties: 0, PointsFor: 3200, PointsAgainst: 2900, WinPct: 0.714},
+			{Rank: 1, Owner: "Alice", Seasons: 2, Wins: 20, Losses: 8, Ties: 0, PointsFor: 3200, PointsAgainst: 2900, AveragePointsFor: 1600, WinPct: 0.714},
 		},
 		BestRegularSeasons: []appstats.SeasonRecord{
 			{Rank: 1, Owner: "Alice", Year: 2023, Wins: 10, Losses: 4, Ties: 0, FinalStanding: 1, PointsFor: 1600, PointsAgainst: 1450, WinPct: 0.714},
@@ -30,7 +30,10 @@ func TestStatsTemplateRendersTabbedSectionsAndFixtureData(t *testing.T) {
 			{Label: "Highest playoff score", Value: 130, ValueText: "points", Owner: "Alice", TeamName: "Alice Alpha", Opponent: "Bob Brigade", Year: 2023, Week: 15, Detail: "Playoffs win"},
 		},
 		PlayoffOwnerTotals: []appstats.PlayoffOwnerTotal{
-			{Rank: 1, Owner: "Alice", Appearances: 2, Wins: 3, Losses: 1, Titles: 1, WinPct: 0.75},
+			{Rank: 1, Owner: "Alice", Appearances: 2, FinalsAppearances: 1, Wins: 3, Losses: 1, Titles: 1, TitleConversion: 1, WinPct: 0.75},
+		},
+		ChampionshipHighlightCards: []appstats.HighlightCard{
+			{Label: "Closest championship win", Value: 5, ValueText: "point margin", Owner: "Alice", TeamName: "Alice Alpha", Opponent: "Bob Brigade", Year: 2023, Week: 15, Detail: "Playoffs win"},
 		},
 		Champions: []appstats.ChampionRecord{
 			{Year: 2023, Owner: "Alice", TeamName: "Alice Alpha", Opponent: "Bob Brigade", WinningScore: 130, LosingScore: 125},
@@ -49,6 +52,9 @@ func TestStatsTemplateRendersTabbedSectionsAndFixtureData(t *testing.T) {
 	assertContains(t, html, "League superlatives")
 	assertContains(t, html, "Playoff archive")
 	assertContains(t, html, "Playoff owner totals")
+	assertContains(t, html, "Championship game records")
+	assertContains(t, html, "Avg PF/Season")
+	assertContains(t, html, "Conversion")
 	assertContains(t, html, "Alice")
 	assertContains(t, html, "2023")
 	assertContains(t, html, "160")

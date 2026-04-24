@@ -30,9 +30,18 @@ templ Index() {
 }
 
 templ Header() {
-	<header class="bg-red-600 text-white shadow-lg">
-		<div class="container mx-auto px-4 py-4">
-			<h1 class="text-2xl font-bold">Fantasy Football Archive</h1>
+	<header class="site-banner text-white shadow-2xl">
+		<div class="container mx-auto px-4 py-4 sm:py-5">
+			<div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+				<div class="space-y-1">
+					<p class="site-banner-kicker">League HQ</p>
+					<div class="site-banner-mark">
+						<span class="site-banner-slash" aria-hidden="true"></span>
+						<h1 class="site-banner-title">Fantasy Football Archive</h1>
+					</div>
+				</div>
+				<p class="site-banner-chip">Historical records, seasons, and matchups</p>
+			</div>
 		</div>
 	</header>
 }

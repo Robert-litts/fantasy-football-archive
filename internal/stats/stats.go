@@ -9,16 +9,17 @@ import (
 )
 
 type PageData struct {
-	SeasonCount              int
-	OwnerCount               int
-	MatchupCount             int
-	HighlightCards           []HighlightCard
-	OwnerTotals              []OwnerTotal
-	RegularSeasonOwnerTotals []OwnerTotal
-	BestRegularSeasons       []SeasonRecord
-	PlayoffHighlightCards    []HighlightCard
-	PlayoffOwnerTotals       []PlayoffOwnerTotal
-	Champions                []ChampionRecord
+	SeasonCount                int
+	OwnerCount                 int
+	MatchupCount               int
+	HighlightCards             []HighlightCard
+	OwnerTotals                []OwnerTotal
+	RegularSeasonOwnerTotals   []OwnerTotal
+	BestRegularSeasons         []SeasonRecord
+	PlayoffHighlightCards      []HighlightCard
+	PlayoffOwnerTotals         []PlayoffOwnerTotal
+	ChampionshipHighlightCards []HighlightCard
+	Champions                  []ChampionRecord
 }
 
 type HighlightCard struct {
@@ -44,17 +45,20 @@ type OwnerTotal struct {
 	PlayoffAppearances int
 	PointsFor          int
 	PointsAgainst      int
+	AveragePointsFor   float64
 	WinPct             float64
 }
 
 type PlayoffOwnerTotal struct {
-	Rank        int
-	Owner       string
-	Appearances int
-	Wins        int
-	Losses      int
-	Titles      int
-	WinPct      float64
+	Rank              int
+	Owner             string
+	Appearances       int
+	FinalsAppearances int
+	Wins              int
+	Losses            int
+	Titles            int
+	TitleConversion   float64
+	WinPct            float64
 }
 
 type SeasonRecord struct {
@@ -104,6 +108,7 @@ func BuildPageData(leagues []db.GetAllLeaguesRow, teamsByLeague map[int32][]db.G
 	champions := make([]ChampionRecord, 0)
 	allRecords := &recordBook{}
 	playoffRecords := &recordBook{}
+	championshipRecords := &recordBook{}
 	matchupCount := 0
 
 	getOwnerTotal := func(owner string) *OwnerTotal {
@@ -176,6 +181,16 @@ func BuildPageData(leagues []db.GetAllLeaguesRow, teamsByLeague map[int32][]db.G
 					LosingScore:  loserScore,
 				})
 			}
+
+			championHomeGame, championAwayGame := buildSingleGameRecords(*championship, ownerAliases)
+			updateRecordBook(championshipRecords, championHomeGame, championAwayGame)
+			if winnerOwner != "" {
+				getPlayoffOwnerTotal(winnerOwner).FinalsAppearances++
+			}
+			loserOwner := championshipLoserOwner(*championship)
+			if loserOwner != "" {
+				getPlayoffOwnerTotal(loserOwner).FinalsAppearances++
+			}
 		}
 
 		for _, matchup := range matchups {
@@ -197,6 +212,7 @@ func BuildPageData(leagues []db.GetAllLeaguesRow, teamsByLeague map[int32][]db.G
 	ownerTotals := make([]OwnerTotal, 0, len(ownerTotalsByName))
 	for _, total := range ownerTotalsByName {
 		total.WinPct = calculateWinPct(total.Wins, total.Losses, total.Ties)
+		total.AveragePointsFor = calculateAverage(total.PointsFor, total.Seasons)
 		ownerTotals = append(ownerTotals, *total)
 	}
 
@@ -237,6 +253,7 @@ func BuildPageData(leagues []db.GetAllLeaguesRow, teamsByLeague map[int32][]db.G
 	playoffOwnerTotals := make([]PlayoffOwnerTotal, 0, len(playoffTotalsByName))
 	for _, total := range playoffTotalsByName {
 		total.WinPct = calculateWinPct(total.Wins, total.Losses, 0)
+		total.TitleConversion = calculateRatio(total.Titles, total.FinalsAppearances)
 		playoffOwnerTotals = append(playoffOwnerTotals, *total)
 	}
 	sort.Slice(playoffOwnerTotals, func(i, j int) bool {
@@ -285,16 +302,17 @@ func BuildPageData(leagues []db.GetAllLeaguesRow, teamsByLeague map[int32][]db.G
 	})
 
 	return PageData{
-		SeasonCount:              len(leagues),
-		OwnerCount:               len(ownerTotals),
-		MatchupCount:             matchupCount,
-		HighlightCards:           buildOverviewHighlightCards(allRecords, ownerTotals),
-		OwnerTotals:              ownerTotals,
-		RegularSeasonOwnerTotals: regularSeasonOwnerTotals,
-		BestRegularSeasons:       bestRegularSeasons,
-		PlayoffHighlightCards:    buildPlayoffHighlightCards(playoffRecords, playoffOwnerTotals),
-		PlayoffOwnerTotals:       playoffOwnerTotals,
-		Champions:                champions,
+		SeasonCount:                len(leagues),
+		OwnerCount:                 len(ownerTotals),
+		MatchupCount:               matchupCount,
+		HighlightCards:             buildOverviewHighlightCards(allRecords, ownerTotals),
+		OwnerTotals:                ownerTotals,
+		RegularSeasonOwnerTotals:   regularSeasonOwnerTotals,
+		BestRegularSeasons:         bestRegularSeasons,
+		PlayoffHighlightCards:      buildPlayoffHighlightCards(playoffRecords, playoffOwnerTotals),
+		PlayoffOwnerTotals:         playoffOwnerTotals,
+		ChampionshipHighlightCards: buildChampionshipHighlightCards(championshipRecords),
+		Champions:                  champions,
 	}
 }
 
@@ -312,6 +330,20 @@ func calculateWinPct(wins, losses, ties int) float64 {
 		return 0
 	}
 	return (float64(wins) + float64(ties)*0.5) / float64(totalGames)
+}
+
+func calculateAverage(total, count int) float64 {
+	if count == 0 {
+		return 0
+	}
+	return float64(total) / float64(count)
+}
+
+func calculateRatio(numerator, denominator int) float64 {
+	if denominator == 0 {
+		return 0
+	}
+	return float64(numerator) / float64(denominator)
 }
 
 func buildSingleGameRecords(matchup db.GetMatchupsByLeagueIdRow, ownerAliases map[string]string) (singleGameRecord, singleGameRecord) {
@@ -408,6 +440,9 @@ func buildOverviewHighlightCards(records *recordBook, ownerTotals []OwnerTotal) 
 	if mostPointsFor := findMostPointsForLeader(ownerTotals); mostPointsFor != nil {
 		highlightCards = append(highlightCards, HighlightCard{Label: "Most points scored", Value: float64(mostPointsFor.PointsFor), ValueText: "points", Owner: mostPointsFor.Owner, Detail: "All seasons combined"})
 	}
+	if bestAverage := findBestAveragePointsLeader(ownerTotals); bestAverage != nil {
+		highlightCards = append(highlightCards, HighlightCard{Label: "Best avg season scoring", Value: bestAverage.AveragePointsFor, ValueText: "points per season", Owner: bestAverage.Owner, Detail: "Average points scored per season played"})
+	}
 	if mostPointsAgainst := findMostPointsAgainstLeader(ownerTotals); mostPointsAgainst != nil {
 		highlightCards = append(highlightCards, HighlightCard{Label: "Most points allowed", Value: float64(mostPointsAgainst.PointsAgainst), ValueText: "points", Owner: mostPointsAgainst.Owner, Detail: "All seasons combined"})
 	}
@@ -432,8 +467,23 @@ func buildPlayoffHighlightCards(records *recordBook, playoffOwnerTotals []Playof
 	if mostTitles := findMostPlayoffTitlesLeader(playoffOwnerTotals); mostTitles != nil {
 		highlightCards = append(highlightCards, HighlightCard{Label: "Most postseason titles", Value: float64(mostTitles.Titles), ValueText: "titles", Owner: mostTitles.Owner, Detail: "Winners of the final winners-bracket matchup"})
 	}
+	if mostFinals := findMostFinalsAppearancesLeader(playoffOwnerTotals); mostFinals != nil {
+		highlightCards = append(highlightCards, HighlightCard{Label: "Most finals appearances", Value: float64(mostFinals.FinalsAppearances), ValueText: "finals", Owner: mostFinals.Owner, Detail: "Championship game appearances"})
+	}
+	if bestConversion := findBestTitleConversionLeader(playoffOwnerTotals); bestConversion != nil {
+		highlightCards = append(highlightCards, HighlightCard{Label: "Best title conversion", Value: bestConversion.TitleConversion * 100, ValueText: "% titles per finals", Owner: bestConversion.Owner, Detail: "Among owners with at least one finals appearance"})
+	}
 
 	return highlightCards
+}
+
+func buildChampionshipHighlightCards(records *recordBook) []HighlightCard {
+	return buildRecordCards(records, map[string]string{
+		"highest": "Highest championship score",
+		"lowest":  "Lowest championship score",
+		"blowout": "Biggest championship blowout",
+		"closest": "Closest championship win",
+	})
 }
 
 func buildRecordCards(records *recordBook, labels map[string]string) []HighlightCard {
@@ -521,6 +571,16 @@ func championshipWinner(matchup db.GetMatchupsByLeagueIdRow) (winnerOwner, winne
 	return "", "", "", 0, 0
 }
 
+func championshipLoserOwner(matchup db.GetMatchupsByLeagueIdRow) string {
+	if matchup.HomeScore > matchup.AwayScore {
+		return matchup.AwayTeamOwners
+	}
+	if matchup.AwayScore > matchup.HomeScore {
+		return matchup.HomeTeamOwners
+	}
+	return ""
+}
+
 func formatGameType(isPlayoff bool, matchupType string) string {
 	if !isPlayoff {
 		return "Regular season"
@@ -591,6 +651,24 @@ func findMostPointsAgainstLeader(ownerTotals []OwnerTotal) *OwnerTotal {
 	return &leader
 }
 
+func findBestAveragePointsLeader(ownerTotals []OwnerTotal) *OwnerTotal {
+	if len(ownerTotals) == 0 {
+		return nil
+	}
+	var leader *OwnerTotal
+	for i := range ownerTotals {
+		total := ownerTotals[i]
+		if total.Seasons == 0 {
+			continue
+		}
+		if leader == nil || total.AveragePointsFor > leader.AveragePointsFor || (total.AveragePointsFor == leader.AveragePointsFor && total.Seasons > leader.Seasons) {
+			copyTotal := total
+			leader = &copyTotal
+		}
+	}
+	return leader
+}
+
 func findMostPlayoffWinsLeader(playoffOwnerTotals []PlayoffOwnerTotal) *PlayoffOwnerTotal {
 	if len(playoffOwnerTotals) == 0 {
 		return nil
@@ -615,4 +693,32 @@ func findMostPlayoffTitlesLeader(playoffOwnerTotals []PlayoffOwnerTotal) *Playof
 		}
 	}
 	return &leader
+}
+
+func findMostFinalsAppearancesLeader(playoffOwnerTotals []PlayoffOwnerTotal) *PlayoffOwnerTotal {
+	if len(playoffOwnerTotals) == 0 {
+		return nil
+	}
+	leader := playoffOwnerTotals[0]
+	for _, total := range playoffOwnerTotals[1:] {
+		if total.FinalsAppearances > leader.FinalsAppearances || (total.FinalsAppearances == leader.FinalsAppearances && total.Titles > leader.Titles) {
+			leader = total
+		}
+	}
+	return &leader
+}
+
+func findBestTitleConversionLeader(playoffOwnerTotals []PlayoffOwnerTotal) *PlayoffOwnerTotal {
+	var leader *PlayoffOwnerTotal
+	for i := range playoffOwnerTotals {
+		total := playoffOwnerTotals[i]
+		if total.FinalsAppearances == 0 {
+			continue
+		}
+		if leader == nil || total.TitleConversion > leader.TitleConversion || (total.TitleConversion == leader.TitleConversion && total.Titles > leader.Titles) {
+			copyTotal := total
+			leader = &copyTotal
+		}
+	}
+	return leader
 }
