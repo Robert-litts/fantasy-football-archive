@@ -12,3 +12,15 @@ Checkout the rest of the background and motivations for this projcect [here](htt
 
 - Go (version 1.23 or higher)
 - PostgreSQL database with the exported ESPN data (see my other project for instructions on how to export the data, coming soon)
+
+### Optional owner alias configuration
+
+If your league has owners who changed names across seasons and you want the stats page to roll them up under a common name, set `OWNER_ALIASES_JSON` in your environment.
+
+Example:
+
+```env
+OWNER_ALIASES_JSON={"Mark Jacobs":"Bob Smith","Bigen Bulgey":"John Jones"}
+```
+
+This only affects cross-season stats rollups. Historical season data remains unchanged.

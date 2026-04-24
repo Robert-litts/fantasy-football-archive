@@ -36,9 +36,10 @@ type ProviderConfig struct {
 }
 
 type config struct {
-	port int
-	env  string
-	db   struct {
+	port         int
+	env          string
+	ownerAliases map[string]string
+	db           struct {
 		dsn          string
 		maxOpenConns int
 		maxIdleConns int
@@ -70,7 +71,7 @@ type application struct {
 
 func main() {
 	// Load environment variables
-	sleeperLeagueID, baseCallbackURL, port, env, dsn, dbMaxOpenConns, dbMaxIdleConns, dbMaxIdleTime, sessionKey, sendGridKey, redisAddr, redisPassword, redisDB := loadEnvironment()
+	sleeperLeagueID, baseCallbackURL, port, env, ownerAliases, dsn, dbMaxOpenConns, dbMaxIdleConns, dbMaxIdleTime, sessionKey, sendGridKey, redisAddr, redisPassword, redisDB := loadEnvironment()
 
 	var cfg config
 
@@ -84,6 +85,7 @@ func main() {
 	flag.Parse()
 
 	cfg.sleeperLeagueID = sleeperLeagueID
+	cfg.ownerAliases = ownerAliases
 	cfg.redis.addr = redisAddr
 	cfg.redis.password = redisPassword
 	cfg.redis.db = redisDB
