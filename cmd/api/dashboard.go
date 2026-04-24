@@ -40,27 +40,7 @@ func (app *application) dashboardHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Extract session values and convert to pointers
-	var name, email, provider string
-	var namePtr, emailPtr, providerPtr *string
-
-	// Handle name
-	if nameVal, ok := session.Values["name"].(string); ok {
-		name = nameVal
-		namePtr = &name
-	}
-
-	// Handle email
-	if emailVal, ok := session.Values["email"].(string); ok {
-		email = emailVal
-		emailPtr = &email
-	}
-
-	// Handle provider
-	if providerVal, ok := session.Values["provider"].(string); ok {
-		provider = providerVal
-		providerPtr = &provider
-	}
+	namePtr, emailPtr, providerPtr := dashboardSessionValues(session.Values)
 
 	// If it's an HTMX request, return just the user info partial
 	if r.Header.Get("HX-Request") == "true" {
@@ -78,4 +58,56 @@ func (app *application) dashboardHandler(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
+}
+
+func (app *application) appDashboardPageHandler(w http.ResponseWriter, r *http.Request) {
+	session, err := app.sessionStore.Get(r, "auth-session")
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	namePtr, emailPtr, providerPtr := dashboardSessionValues(session.Values)
+	err = templates.Base(
+		templates.Dashboard(namePtr, emailPtr, providerPtr),
+	).Render(r.Context(), w)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) appUserInfoFragmentHandler(w http.ResponseWriter, r *http.Request) {
+	session, err := app.sessionStore.Get(r, "auth-session")
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	namePtr, emailPtr, providerPtr := dashboardSessionValues(session.Values)
+	err = templates.UserInfo(namePtr, emailPtr, providerPtr).Render(r.Context(), w)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func dashboardSessionValues(values map[interface{}]interface{}) (*string, *string, *string) {
+	var name, email, provider string
+	var namePtr, emailPtr, providerPtr *string
+
+	if nameVal, ok := values["name"].(string); ok {
+		name = nameVal
+		namePtr = &name
+	}
+
+	if emailVal, ok := values["email"].(string); ok {
+		email = emailVal
+		emailPtr = &email
+	}
+
+	if providerVal, ok := values["provider"].(string); ok {
+		provider = providerVal
+		providerPtr = &provider
+	}
+
+	return namePtr, emailPtr, providerPtr
 }

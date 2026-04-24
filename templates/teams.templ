@@ -55,7 +55,7 @@ templ LeagueTeamSelector(leagues []db.GetAllLeaguesRow, selectedLeagueID int) {
 		<label for="league-select" class="block text-sm font-medium text-gray-300 mb-2">Select League</label>
 		<select
 			id="league-select"
-			hx-get="/teamboard"
+			hx-get="/app/fragments/teams-table"
 			hx-target="#teams-dashboard"
 			hx-swap="innerHTML"
 			hx-trigger="change"

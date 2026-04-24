@@ -6,7 +6,7 @@
     <div class="leagues-dashboard">
       <h1 class="text-3xl font-bold mb-6">Fantasy Football Leagues</h1>
       <div class="overflow-x-auto rounded-lg shadow">
-        <div id="leagues-list" hx-get="/v1/dashboard/leagues/refresh" hx-trigger="load, every 30s">
+        <div id="leagues-list" hx-get="/app/fragments/leagues-table" hx-trigger="load, every 30s">
           {{template "leagues-table" .}}
         </div>
       </div>
@@ -39,4 +39,3 @@
   </tbody>
 </table>
 {{end}}
-

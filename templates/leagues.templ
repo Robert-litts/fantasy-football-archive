@@ -13,7 +13,7 @@ templ Leagues(leagues []db.League) {
 				<div class="overflow-x-auto rounded-lg shadow">
 					<div
 						id="leagues-list"
-						hx-get="/v1/dashboard/leagues/refresh"
+						hx-get="/app/fragments/leagues-table"
 						hx-trigger="load, every 30s"
 					>
 						@LeaguesTable(leagues)
@@ -52,7 +52,7 @@ templ LeaguePage(leagues []db.GetAllLeaguesRow) {
 			for _, league := range leagues {
 				<a
 					href="#"
-					hx-get={ "/drafts/" + strconv.Itoa(int(league.ID)) }
+					hx-get={ "/app/fragments/draft-board/" + strconv.Itoa(int(league.ID)) }
 					hx-target="main"
 					class="bg-gray-800 p-6 rounded-lg border border-gray-700 hover:border-blue-500 transition-colors"
 				>

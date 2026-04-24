@@ -112,7 +112,7 @@ templ DraftPage(leagues []db.GetAllLeaguesRow) {
 			for _, league := range leagues {
 				<a
 					href="#"
-					hx-get={ "/drafts/" + strconv.Itoa(int(league.ID)) }
+					hx-get={ "/app/fragments/draft-board/" + strconv.Itoa(int(league.ID)) }
 					hx-target="main"
 					class="bg-gray-800 p-6 rounded-lg border border-gray-700 hover:border-blue-500 transition-colors"
 				>
@@ -135,7 +135,7 @@ templ DraftBoardPage(drafts []db.GetDraftBoardWithSummaryRow, leagues []db.GetAl
 		</div>
 		<div class="mb-4 flex justify-end">
 			<a
-				hx-get="/drafts"
+				hx-get="/app/fragments/draft-page"
 				hx-target="main"
 				class="text-blue-500 hover:text-blue-400 flex items-center gap-2"
 			>
@@ -157,7 +157,7 @@ templ LeagueSelector(leagues []db.GetAllLeaguesRow, selectedLeagueID int) {
 		<label for="league-select" class="block text-sm font-medium text-gray-300 mb-2">Select League</label>
 		<select
 			id="league-select"
-			hx-get="/draftboard"
+			hx-get="/app/fragments/draft-board"
 			hx-target="#draftboard-container"
 			hx-swap="outerHTML"
 			hx-trigger="change"
