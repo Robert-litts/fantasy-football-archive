@@ -113,12 +113,56 @@ func (app *application) listLeaguesHandler(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-// leaguesPageHandler renders the leagues page for authenticated users
-func (app *application) leaguesPageHandler(w http.ResponseWriter, r *http.Request) {
-	// Get user session data
-	// session, _ := app.sessionStore.Get(r, "auth-session")
+func defaultLeaguesParams() db.GetLeaguesAscParams {
+	return db.GetLeaguesAscParams{
+		Limit:       100,
+		Offset:      0,
+		Column9:     "id",
+		ID:          -1,
+		LeagueId:    -1,
+		Year:        -1,
+		TeamCount:   -1,
+		CurrentWeek: -1,
+		NflWeek:     -1,
+	}
+}
 
-	// Set up the query parameters for getting leagues
+func (app *application) getDefaultLeagues(r *http.Request) ([]db.League, error) {
+	return app.queries.GetLeaguesAsc(r.Context(), defaultLeaguesParams())
+}
+
+func (app *application) appLeaguesPageHandler(w http.ResponseWriter, r *http.Request) {
+	leagues, err := app.getDefaultLeagues(r)
+	if err != nil {
+		app.logger.Error("database error", "error", err)
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	err = templates.Base(
+		templates.Leagues(leagues),
+	).Render(r.Context(), w)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) appLeaguesTableFragmentHandler(w http.ResponseWriter, r *http.Request) {
+	leagues, err := app.getDefaultLeagues(r)
+	if err != nil {
+		app.logger.Error("database error", "error", err)
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	err = templates.LeaguesTable(leagues).Render(r.Context(), w)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+// leaguesPageHandler renders the leagues page for authenticated users.
+func (app *application) leaguesPageHandler(w http.ResponseWriter, r *http.Request) {
 	baseParams := db.GetLeaguesAscParams{
 		Limit:       100,
 		Offset:      0,

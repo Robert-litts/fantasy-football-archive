@@ -55,9 +55,9 @@ func (app *application) routes() http.Handler {
 	// App shell and page routes render user-visible HTML.
 	router.HandlerFunc(http.MethodGet, "/app", app.requireAuthenticated(app.leaguesIndexHandler))
 	router.HandlerFunc(http.MethodGet, "/app/index", app.requireAuthenticated(app.leaguesIndexHandler))
-	router.HandlerFunc(http.MethodGet, "/app/dashboard", app.requireAuthenticated(app.dashboardHandler))
+	router.HandlerFunc(http.MethodGet, "/app/dashboard", app.requireAuthenticated(app.appDashboardPageHandler))
 	router.HandlerFunc(http.MethodGet, "/app/home", app.requireAuthenticated(app.homeHandler))
-	router.HandlerFunc(http.MethodGet, "/app/leagues", app.requireAuthenticated(app.leaguesPageHandler))
+	router.HandlerFunc(http.MethodGet, "/app/leagues", app.requireAuthenticated(app.appLeaguesPageHandler))
 	router.HandlerFunc(http.MethodGet, "/app/teams", app.requireAuthenticated(app.teamDisplayHandler))
 	router.HandlerFunc(http.MethodGet, "/app/matchups", app.requireAuthenticated(app.appMatchupsTableFragmentHandler))
 	router.HandlerFunc(http.MethodGet, "/app/drafts", app.requireAuthenticated(app.appDraftsPageHandler))
@@ -67,8 +67,8 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodGet, "/app/rules", app.requireAuthenticated(app.rulesHandler))
 
 	// App fragment routes render HTMX partials.
-	router.HandlerFunc(http.MethodGet, "/app/fragments/user-info", app.requireAuthenticated(app.dashboardHandler))
-	router.HandlerFunc(http.MethodGet, "/app/fragments/leagues-table", app.requireAuthenticated(app.leaguesPageHandler))
+	router.HandlerFunc(http.MethodGet, "/app/fragments/user-info", app.requireAuthenticated(app.appUserInfoFragmentHandler))
+	router.HandlerFunc(http.MethodGet, "/app/fragments/leagues-table", app.requireAuthenticated(app.appLeaguesTableFragmentHandler))
 	router.HandlerFunc(http.MethodGet, "/app/fragments/teams-table", app.requireAuthenticated(app.appTeamsTableFragmentHandler))
 	router.HandlerFunc(http.MethodGet, "/app/fragments/matchups-table", app.requireAuthenticated(app.appMatchupsTableFragmentHandler))
 	router.HandlerFunc(http.MethodGet, "/app/fragments/matchups-week/:week", app.requireAuthenticated(app.appMatchupsWeekFragmentHandler))
