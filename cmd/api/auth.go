@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strings"
 	"sync"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -62,7 +61,7 @@ func (am *AuthManager) RegisterProvider(ctx context.Context, config ProviderConf
 	oauth2Config := oauth2.Config{
 		ClientID:     config.ClientID,
 		ClientSecret: config.ClientSecret,
-		RedirectURL:  fmt.Sprintf("%s/v1/auth/%s/callback", config.BaseCallbackURL, config.Name),
+		RedirectURL:  fmt.Sprintf("%s/auth/%s/callback", config.BaseCallbackURL, config.Name),
 		Endpoint:     provider.Endpoint(),
 		Scopes:       append([]string{oidc.ScopeOpenID, "profile", "email"}, config.Scopes...),
 	}
@@ -89,8 +88,11 @@ func generateState() (string, error) {
 }
 
 func (a *application) HandleAuth(w http.ResponseWriter, r *http.Request) {
-	provider := strings.TrimPrefix(r.URL.Path, "/v1/auth/")
-	provider = strings.TrimSuffix(provider, "/")
+	provider, err := a.readProviderParam(r)
+	if err != nil {
+		a.notFoundResponse(w, r)
+		return
+	}
 
 	a.authManager.mu.RLock()
 	p, exists := a.authManager.providers[provider]
@@ -117,8 +119,11 @@ func (a *application) HandleAuth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *application) HandleCallback(w http.ResponseWriter, r *http.Request) {
-	provider := strings.TrimPrefix(r.URL.Path, "/v1/auth/")
-	provider = strings.TrimSuffix(strings.TrimSuffix(provider, "/callback"), "/")
+	provider, err := a.readProviderParam(r)
+	if err != nil {
+		a.notFoundResponse(w, r)
+		return
+	}
 
 	a.logger.Info("auth callback received",
 		"provider", provider,
@@ -200,7 +205,7 @@ func (a *application) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	// 	a.serverErrorResponse(w, r, err)
 	// }
 
-	http.Redirect(w, r, "/v1/dashboard/index", http.StatusSeeOther)
+	http.Redirect(w, r, "/app", http.StatusSeeOther)
 }
 
 func (a *application) HandleLogout(w http.ResponseWriter, r *http.Request) {
@@ -215,7 +220,7 @@ func (a *application) HandleLogout(w http.ResponseWriter, r *http.Request) {
 
 	domain := os.Getenv("AUTH0_DOMAIN")
 	clientID := os.Getenv("AUTH0_CLIENT_ID")
-	postLogoutRedirectURI := "http://localhost:4000/"
+	postLogoutRedirectURI := a.config.auth.baseCallbackURL
 
 	logoutURL := fmt.Sprintf(
 		"https://%s/oidc/logout?client_id=%s&post_logout_redirect_uri=%s",

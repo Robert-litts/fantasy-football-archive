@@ -12,7 +12,7 @@ templ MatchupsTable(leagues []db.GetAllLeaguesRow, selectedLeagueID int, matchup
 			<label for="league-select" class="block text-sm font-medium text-gray-300 mb-2">Select League</label>
 			<select
 				id="league-select"
-				hx-get={ fmt.Sprintf("/matchups/week/%d", activeWeek) }
+				hx-get={ fmt.Sprintf("/app/fragments/matchups-week/%d", activeWeek) }
 				hx-target="#matchups-container"
 				hx-swap="innerHTML"
 				hx-trigger="change"
@@ -176,7 +176,7 @@ templ tabButton(week int32, activeWeek int32, isPlayoff bool, isChampionship boo
 			templ.KV("text-yellow-400", isPlayoff && week != activeWeek),
 			templ.KV("bg-gradient-to-b from-gray-800 to-gray-900", isPlayoff),
 		}
-		hx-get={ fmt.Sprintf("/matchups/week/%d?id=%d", week, leagueID) }
+		hx-get={ fmt.Sprintf("/app/fragments/matchups-week/%d?id=%d", week, leagueID) }
 		hx-target="#matchups-container"
 		hx-trigger="click"
 		role="tab"
