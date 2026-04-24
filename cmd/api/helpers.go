@@ -150,7 +150,30 @@ func (app *application) readIntQuery(qs url.Values, key string, v *validator.Val
 	return int32(i) // Return the valid int32 value
 }
 
-func loadEnvironment() (string, string, int, string, string, int, int, time.Duration, string, string, string, string, int) {
+func parseOwnerAliasesJSON(raw string) (map[string]string, error) {
+	if strings.TrimSpace(raw) == "" {
+		return map[string]string{}, nil
+	}
+
+	aliases := make(map[string]string)
+	if err := json.Unmarshal([]byte(raw), &aliases); err != nil {
+		return nil, fmt.Errorf("invalid OWNER_ALIASES_JSON: %w", err)
+	}
+
+	normalizedAliases := make(map[string]string, len(aliases))
+	for alias, canonical := range aliases {
+		normalizedAlias := strings.Join(strings.Fields(strings.TrimSpace(alias)), " ")
+		normalizedCanonical := strings.Join(strings.Fields(strings.TrimSpace(canonical)), " ")
+		if normalizedAlias == "" || normalizedCanonical == "" {
+			return nil, errors.New("invalid OWNER_ALIASES_JSON: aliases and canonical names must be non-empty")
+		}
+		normalizedAliases[normalizedAlias] = normalizedCanonical
+	}
+
+	return normalizedAliases, nil
+}
+
+func loadEnvironment() (string, string, int, string, map[string]string, string, int, int, time.Duration, string, string, string, string, int) {
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env found, using system .env variables")
 	}
@@ -170,6 +193,11 @@ func loadEnvironment() (string, string, int, string, string, int, int, time.Dura
 	env := os.Getenv("ENV")
 	if env == "" {
 		log.Fatal("ENV environment variable not set")
+	}
+
+	ownerAliases, err := parseOwnerAliasesJSON(os.Getenv("OWNER_ALIASES_JSON"))
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	dsn := os.Getenv("DB_URL")
@@ -207,7 +235,7 @@ func loadEnvironment() (string, string, int, string, string, int, int, time.Dura
 	}
 
 	//return the env variables
-	return leagueID, baseCallbackURL, port, env, dsn, dbMaxOpenConns, dbMaxIdleConns, dbMaxIdleTime, sessionKey, sendGridKey, redisAddr, redisPassword, redisDB
+	return leagueID, baseCallbackURL, port, env, ownerAliases, dsn, dbMaxOpenConns, dbMaxIdleConns, dbMaxIdleTime, sessionKey, sendGridKey, redisAddr, redisPassword, redisDB
 }
 
 // The background() helper accepts an arbitrary function as a parameter.
