@@ -9,13 +9,16 @@ import (
 )
 
 type PageData struct {
-	SeasonCount        int
-	OwnerCount         int
-	MatchupCount       int
-	HighlightCards     []HighlightCard
-	OwnerTotals        []OwnerTotal
-	BestRegularSeasons []SeasonRecord
-	Champions          []ChampionRecord
+	SeasonCount              int
+	OwnerCount               int
+	MatchupCount             int
+	HighlightCards           []HighlightCard
+	OwnerTotals              []OwnerTotal
+	RegularSeasonOwnerTotals []OwnerTotal
+	BestRegularSeasons       []SeasonRecord
+	PlayoffHighlightCards    []HighlightCard
+	PlayoffOwnerTotals       []PlayoffOwnerTotal
+	Champions                []ChampionRecord
 }
 
 type HighlightCard struct {
@@ -42,6 +45,16 @@ type OwnerTotal struct {
 	PointsFor          int
 	PointsAgainst      int
 	WinPct             float64
+}
+
+type PlayoffOwnerTotal struct {
+	Rank        int
+	Owner       string
+	Appearances int
+	Wins        int
+	Losses      int
+	Titles      int
+	WinPct      float64
 }
 
 type SeasonRecord struct {
@@ -77,14 +90,20 @@ type singleGameRecord struct {
 	Detail   string
 }
 
+type recordBook struct {
+	highestScore   *singleGameRecord
+	lowestScore    *singleGameRecord
+	biggestBlowout *singleGameRecord
+	closestWin     *singleGameRecord
+}
+
 func BuildPageData(leagues []db.GetAllLeaguesRow, teamsByLeague map[int32][]db.GetTeamsByLeagueYearRow, matchupsByLeague map[int32][]db.GetMatchupsByLeagueIdRow, ownerAliases map[string]string) PageData {
 	ownerTotalsByName := make(map[string]*OwnerTotal)
+	playoffTotalsByName := make(map[string]*PlayoffOwnerTotal)
 	bestRegularSeasons := make([]SeasonRecord, 0)
 	champions := make([]ChampionRecord, 0)
-	var highestScore *singleGameRecord
-	var lowestScore *singleGameRecord
-	var biggestBlowout *singleGameRecord
-	var closestWin *singleGameRecord
+	allRecords := &recordBook{}
+	playoffRecords := &recordBook{}
 	matchupCount := 0
 
 	getOwnerTotal := func(owner string) *OwnerTotal {
@@ -97,6 +116,19 @@ func BuildPageData(leagues []db.GetAllLeaguesRow, teamsByLeague map[int32][]db.G
 		}
 		total := &OwnerTotal{Owner: normalizedOwner}
 		ownerTotalsByName[normalizedOwner] = total
+		return total
+	}
+
+	getPlayoffOwnerTotal := func(owner string) *PlayoffOwnerTotal {
+		normalizedOwner := normalizeOwner(owner, ownerAliases)
+		if normalizedOwner == "" {
+			normalizedOwner = "Unknown"
+		}
+		if total, ok := playoffTotalsByName[normalizedOwner]; ok {
+			return total
+		}
+		total := &PlayoffOwnerTotal{Owner: normalizedOwner}
+		playoffTotalsByName[normalizedOwner] = total
 		return total
 	}
 
@@ -124,15 +156,17 @@ func BuildPageData(leagues []db.GetAllLeaguesRow, teamsByLeague map[int32][]db.G
 			})
 		}
 
-		playoffOwners := make(map[string]struct{})
 		matchups := matchupsByLeague[league.ID]
 		for owner := range collectPlayoffOwners(matchups, ownerAliases) {
-			playoffOwners[owner] = struct{}{}
+			getOwnerTotal(owner).PlayoffAppearances++
+			getPlayoffOwnerTotal(owner).Appearances++
 		}
+
 		if championship := findChampionshipMatch(matchups); championship != nil {
 			winnerOwner, winnerTeam, loserTeam, winnerScore, loserScore := championshipWinner(*championship)
 			if winnerOwner != "" {
 				getOwnerTotal(winnerOwner).Titles++
+				getPlayoffOwnerTotal(winnerOwner).Titles++
 				champions = append(champions, ChampionRecord{
 					Year:         int(championship.LeagueYear),
 					Owner:        normalizeOwner(winnerOwner, ownerAliases),
@@ -150,67 +184,13 @@ func BuildPageData(leagues []db.GetAllLeaguesRow, teamsByLeague map[int32][]db.G
 			}
 
 			matchupCount++
+			homeGame, awayGame := buildSingleGameRecords(matchup, ownerAliases)
+			updateRecordBook(allRecords, homeGame, awayGame)
 
-			homeGame := singleGameRecord{
-				Score:    matchup.HomeScore,
-				Owner:    normalizeOwner(matchup.HomeTeamOwners, ownerAliases),
-				TeamName: matchup.HomeTeamName,
-				Opponent: matchup.AwayTeamName,
-				Year:     int(matchup.LeagueYear),
-				Week:     int(matchup.Week),
-				Detail:   formatGameType(matchup.IsPlayoff, matchup.MatchupType),
+			if matchup.IsPlayoff && matchup.MatchupType == "WINNERS_BRACKET" {
+				updateRecordBook(playoffRecords, homeGame, awayGame)
+				applyPlayoffResult(getPlayoffOwnerTotal, homeGame, awayGame)
 			}
-			awayGame := singleGameRecord{
-				Score:    matchup.AwayScore,
-				Owner:    normalizeOwner(matchup.AwayTeamOwners, ownerAliases),
-				TeamName: matchup.AwayTeamName,
-				Opponent: matchup.HomeTeamName,
-				Year:     int(matchup.LeagueYear),
-				Week:     int(matchup.Week),
-				Detail:   formatGameType(matchup.IsPlayoff, matchup.MatchupType),
-			}
-
-			if highestScore == nil || homeGame.Score > highestScore.Score {
-				highestScore = &homeGame
-			}
-			if highestScore == nil || awayGame.Score > highestScore.Score {
-				highestScore = &awayGame
-			}
-			if lowestScore == nil || homeGame.Score < lowestScore.Score {
-				lowestScore = &homeGame
-			}
-			if lowestScore == nil || awayGame.Score < lowestScore.Score {
-				lowestScore = &awayGame
-			}
-
-			if matchup.HomeScore == matchup.AwayScore {
-				continue
-			}
-
-			margin := math.Abs(matchup.HomeScore - matchup.AwayScore)
-			winner := homeGame
-			loser := awayGame
-			if matchup.AwayScore > matchup.HomeScore {
-				winner = awayGame
-				loser = homeGame
-			}
-
-			winner.Margin = margin
-			winner.Opponent = loser.TeamName
-			winner.Detail = winner.Detail + " win"
-
-			if biggestBlowout == nil || margin > biggestBlowout.Margin {
-				copyWinner := winner
-				biggestBlowout = &copyWinner
-			}
-			if closestWin == nil || margin < closestWin.Margin {
-				copyWinner := winner
-				closestWin = &copyWinner
-			}
-		}
-
-		for owner := range playoffOwners {
-			getOwnerTotal(owner).PlayoffAppearances++
 		}
 	}
 
@@ -218,6 +198,24 @@ func BuildPageData(leagues []db.GetAllLeaguesRow, teamsByLeague map[int32][]db.G
 	for _, total := range ownerTotalsByName {
 		total.WinPct = calculateWinPct(total.Wins, total.Losses, total.Ties)
 		ownerTotals = append(ownerTotals, *total)
+	}
+
+	regularSeasonOwnerTotals := make([]OwnerTotal, len(ownerTotals))
+	copy(regularSeasonOwnerTotals, ownerTotals)
+	sort.Slice(regularSeasonOwnerTotals, func(i, j int) bool {
+		if regularSeasonOwnerTotals[i].Wins != regularSeasonOwnerTotals[j].Wins {
+			return regularSeasonOwnerTotals[i].Wins > regularSeasonOwnerTotals[j].Wins
+		}
+		if regularSeasonOwnerTotals[i].WinPct != regularSeasonOwnerTotals[j].WinPct {
+			return regularSeasonOwnerTotals[i].WinPct > regularSeasonOwnerTotals[j].WinPct
+		}
+		if regularSeasonOwnerTotals[i].PointsFor != regularSeasonOwnerTotals[j].PointsFor {
+			return regularSeasonOwnerTotals[i].PointsFor > regularSeasonOwnerTotals[j].PointsFor
+		}
+		return regularSeasonOwnerTotals[i].Owner < regularSeasonOwnerTotals[j].Owner
+	})
+	for i := range regularSeasonOwnerTotals {
+		regularSeasonOwnerTotals[i].Rank = i + 1
 	}
 
 	sort.Slice(ownerTotals, func(i, j int) bool {
@@ -234,6 +232,30 @@ func BuildPageData(leagues []db.GetAllLeaguesRow, teamsByLeague map[int32][]db.G
 	})
 	for i := range ownerTotals {
 		ownerTotals[i].Rank = i + 1
+	}
+
+	playoffOwnerTotals := make([]PlayoffOwnerTotal, 0, len(playoffTotalsByName))
+	for _, total := range playoffTotalsByName {
+		total.WinPct = calculateWinPct(total.Wins, total.Losses, 0)
+		playoffOwnerTotals = append(playoffOwnerTotals, *total)
+	}
+	sort.Slice(playoffOwnerTotals, func(i, j int) bool {
+		if playoffOwnerTotals[i].Titles != playoffOwnerTotals[j].Titles {
+			return playoffOwnerTotals[i].Titles > playoffOwnerTotals[j].Titles
+		}
+		if playoffOwnerTotals[i].Wins != playoffOwnerTotals[j].Wins {
+			return playoffOwnerTotals[i].Wins > playoffOwnerTotals[j].Wins
+		}
+		if playoffOwnerTotals[i].Appearances != playoffOwnerTotals[j].Appearances {
+			return playoffOwnerTotals[i].Appearances > playoffOwnerTotals[j].Appearances
+		}
+		if playoffOwnerTotals[i].WinPct != playoffOwnerTotals[j].WinPct {
+			return playoffOwnerTotals[i].WinPct > playoffOwnerTotals[j].WinPct
+		}
+		return playoffOwnerTotals[i].Owner < playoffOwnerTotals[j].Owner
+	})
+	for i := range playoffOwnerTotals {
+		playoffOwnerTotals[i].Rank = i + 1
 	}
 
 	sort.Slice(bestRegularSeasons, func(i, j int) bool {
@@ -262,113 +284,17 @@ func BuildPageData(leagues []db.GetAllLeaguesRow, teamsByLeague map[int32][]db.G
 		return champions[i].Year > champions[j].Year
 	})
 
-	highlightCards := make([]HighlightCard, 0, 9)
-	if highestScore != nil {
-		highlightCards = append(highlightCards, HighlightCard{
-			Label:     "Highest weekly score",
-			Value:     highestScore.Score,
-			ValueText: "points",
-			Owner:     highestScore.Owner,
-			TeamName:  highestScore.TeamName,
-			Opponent:  highestScore.Opponent,
-			Year:      highestScore.Year,
-			Week:      highestScore.Week,
-			Detail:    highestScore.Detail,
-		})
-	}
-	if lowestScore != nil {
-		highlightCards = append(highlightCards, HighlightCard{
-			Label:     "Lowest weekly score",
-			Value:     lowestScore.Score,
-			ValueText: "points",
-			Owner:     lowestScore.Owner,
-			TeamName:  lowestScore.TeamName,
-			Opponent:  lowestScore.Opponent,
-			Year:      lowestScore.Year,
-			Week:      lowestScore.Week,
-			Detail:    lowestScore.Detail,
-		})
-	}
-	if biggestBlowout != nil {
-		highlightCards = append(highlightCards, HighlightCard{
-			Label:     "Biggest blowout",
-			Value:     biggestBlowout.Margin,
-			ValueText: "point margin",
-			Owner:     biggestBlowout.Owner,
-			TeamName:  biggestBlowout.TeamName,
-			Opponent:  biggestBlowout.Opponent,
-			Year:      biggestBlowout.Year,
-			Week:      biggestBlowout.Week,
-			Detail:    biggestBlowout.Detail,
-		})
-	}
-	if closestWin != nil {
-		highlightCards = append(highlightCards, HighlightCard{
-			Label:     "Closest win",
-			Value:     closestWin.Margin,
-			ValueText: "point margin",
-			Owner:     closestWin.Owner,
-			TeamName:  closestWin.TeamName,
-			Opponent:  closestWin.Opponent,
-			Year:      closestWin.Year,
-			Week:      closestWin.Week,
-			Detail:    closestWin.Detail,
-		})
-	}
-	if mostWins := findMostWinsLeader(ownerTotals); mostWins != nil {
-		highlightCards = append(highlightCards, HighlightCard{
-			Label:     "All-time wins leader",
-			Value:     float64(mostWins.Wins),
-			ValueText: "wins",
-			Owner:     mostWins.Owner,
-			Detail:    "All seasons combined",
-		})
-	}
-	if mostPlayoffs := findMostPlayoffAppearancesLeader(ownerTotals); mostPlayoffs != nil {
-		highlightCards = append(highlightCards, HighlightCard{
-			Label:     "Most playoff trips",
-			Value:     float64(mostPlayoffs.PlayoffAppearances),
-			ValueText: "appearances",
-			Owner:     mostPlayoffs.Owner,
-			Detail:    "First-week winners-bracket appearances",
-		})
-	}
-	if mostPointsFor := findMostPointsForLeader(ownerTotals); mostPointsFor != nil {
-		highlightCards = append(highlightCards, HighlightCard{
-			Label:     "Most points scored",
-			Value:     float64(mostPointsFor.PointsFor),
-			ValueText: "points",
-			Owner:     mostPointsFor.Owner,
-			Detail:    "All seasons combined",
-		})
-	}
-	if mostPointsAgainst := findMostPointsAgainstLeader(ownerTotals); mostPointsAgainst != nil {
-		highlightCards = append(highlightCards, HighlightCard{
-			Label:     "Most points allowed",
-			Value:     float64(mostPointsAgainst.PointsAgainst),
-			ValueText: "points",
-			Owner:     mostPointsAgainst.Owner,
-			Detail:    "All seasons combined",
-		})
-	}
-	if mostTitles := findMostTitlesLeader(ownerTotals); mostTitles != nil {
-		highlightCards = append(highlightCards, HighlightCard{
-			Label:     "Most championships",
-			Value:     float64(mostTitles.Titles),
-			ValueText: "titles",
-			Owner:     mostTitles.Owner,
-			Detail:    "Winner of the final winners-bracket matchup",
-		})
-	}
-
 	return PageData{
-		SeasonCount:        len(leagues),
-		OwnerCount:         len(ownerTotals),
-		MatchupCount:       matchupCount,
-		HighlightCards:     highlightCards,
-		OwnerTotals:        ownerTotals,
-		BestRegularSeasons: bestRegularSeasons,
-		Champions:          champions,
+		SeasonCount:              len(leagues),
+		OwnerCount:               len(ownerTotals),
+		MatchupCount:             matchupCount,
+		HighlightCards:           buildOverviewHighlightCards(allRecords, ownerTotals),
+		OwnerTotals:              ownerTotals,
+		RegularSeasonOwnerTotals: regularSeasonOwnerTotals,
+		BestRegularSeasons:       bestRegularSeasons,
+		PlayoffHighlightCards:    buildPlayoffHighlightCards(playoffRecords, playoffOwnerTotals),
+		PlayoffOwnerTotals:       playoffOwnerTotals,
+		Champions:                champions,
 	}
 }
 
@@ -386,6 +312,145 @@ func calculateWinPct(wins, losses, ties int) float64 {
 		return 0
 	}
 	return (float64(wins) + float64(ties)*0.5) / float64(totalGames)
+}
+
+func buildSingleGameRecords(matchup db.GetMatchupsByLeagueIdRow, ownerAliases map[string]string) (singleGameRecord, singleGameRecord) {
+	homeGame := singleGameRecord{
+		Score:    matchup.HomeScore,
+		Owner:    normalizeOwner(matchup.HomeTeamOwners, ownerAliases),
+		TeamName: matchup.HomeTeamName,
+		Opponent: matchup.AwayTeamName,
+		Year:     int(matchup.LeagueYear),
+		Week:     int(matchup.Week),
+		Detail:   formatGameType(matchup.IsPlayoff, matchup.MatchupType),
+	}
+	awayGame := singleGameRecord{
+		Score:    matchup.AwayScore,
+		Owner:    normalizeOwner(matchup.AwayTeamOwners, ownerAliases),
+		TeamName: matchup.AwayTeamName,
+		Opponent: matchup.HomeTeamName,
+		Year:     int(matchup.LeagueYear),
+		Week:     int(matchup.Week),
+		Detail:   formatGameType(matchup.IsPlayoff, matchup.MatchupType),
+	}
+	return homeGame, awayGame
+}
+
+func updateRecordBook(records *recordBook, homeGame, awayGame singleGameRecord) {
+	if records.highestScore == nil || homeGame.Score > records.highestScore.Score {
+		copyHome := homeGame
+		records.highestScore = &copyHome
+	}
+	if records.highestScore == nil || awayGame.Score > records.highestScore.Score {
+		copyAway := awayGame
+		records.highestScore = &copyAway
+	}
+	if records.lowestScore == nil || homeGame.Score < records.lowestScore.Score {
+		copyHome := homeGame
+		records.lowestScore = &copyHome
+	}
+	if records.lowestScore == nil || awayGame.Score < records.lowestScore.Score {
+		copyAway := awayGame
+		records.lowestScore = &copyAway
+	}
+	if homeGame.Score == awayGame.Score {
+		return
+	}
+
+	margin := math.Abs(homeGame.Score - awayGame.Score)
+	winner := homeGame
+	loser := awayGame
+	if awayGame.Score > homeGame.Score {
+		winner = awayGame
+		loser = homeGame
+	}
+	winner.Margin = margin
+	winner.Opponent = loser.TeamName
+	winner.Detail = winner.Detail + " win"
+
+	if records.biggestBlowout == nil || margin > records.biggestBlowout.Margin {
+		copyWinner := winner
+		records.biggestBlowout = &copyWinner
+	}
+	if records.closestWin == nil || margin < records.closestWin.Margin {
+		copyWinner := winner
+		records.closestWin = &copyWinner
+	}
+}
+
+func applyPlayoffResult(getPlayoffOwnerTotal func(string) *PlayoffOwnerTotal, homeGame, awayGame singleGameRecord) {
+	if homeGame.Score == awayGame.Score {
+		return
+	}
+	if homeGame.Score > awayGame.Score {
+		getPlayoffOwnerTotal(homeGame.Owner).Wins++
+		getPlayoffOwnerTotal(awayGame.Owner).Losses++
+		return
+	}
+	getPlayoffOwnerTotal(awayGame.Owner).Wins++
+	getPlayoffOwnerTotal(homeGame.Owner).Losses++
+}
+
+func buildOverviewHighlightCards(records *recordBook, ownerTotals []OwnerTotal) []HighlightCard {
+	highlightCards := buildRecordCards(records, map[string]string{
+		"highest": "Highest weekly score",
+		"lowest":  "Lowest weekly score",
+		"blowout": "Biggest blowout",
+		"closest": "Closest win",
+	})
+
+	if mostWins := findMostWinsLeader(ownerTotals); mostWins != nil {
+		highlightCards = append(highlightCards, HighlightCard{Label: "All-time wins leader", Value: float64(mostWins.Wins), ValueText: "wins", Owner: mostWins.Owner, Detail: "All seasons combined"})
+	}
+	if mostPlayoffs := findMostPlayoffAppearancesLeader(ownerTotals); mostPlayoffs != nil {
+		highlightCards = append(highlightCards, HighlightCard{Label: "Most playoff trips", Value: float64(mostPlayoffs.PlayoffAppearances), ValueText: "appearances", Owner: mostPlayoffs.Owner, Detail: "First-week winners-bracket appearances"})
+	}
+	if mostPointsFor := findMostPointsForLeader(ownerTotals); mostPointsFor != nil {
+		highlightCards = append(highlightCards, HighlightCard{Label: "Most points scored", Value: float64(mostPointsFor.PointsFor), ValueText: "points", Owner: mostPointsFor.Owner, Detail: "All seasons combined"})
+	}
+	if mostPointsAgainst := findMostPointsAgainstLeader(ownerTotals); mostPointsAgainst != nil {
+		highlightCards = append(highlightCards, HighlightCard{Label: "Most points allowed", Value: float64(mostPointsAgainst.PointsAgainst), ValueText: "points", Owner: mostPointsAgainst.Owner, Detail: "All seasons combined"})
+	}
+	if mostTitles := findMostTitlesLeader(ownerTotals); mostTitles != nil {
+		highlightCards = append(highlightCards, HighlightCard{Label: "Most championships", Value: float64(mostTitles.Titles), ValueText: "titles", Owner: mostTitles.Owner, Detail: "Winner of the final winners-bracket matchup"})
+	}
+
+	return highlightCards
+}
+
+func buildPlayoffHighlightCards(records *recordBook, playoffOwnerTotals []PlayoffOwnerTotal) []HighlightCard {
+	highlightCards := buildRecordCards(records, map[string]string{
+		"highest": "Highest playoff score",
+		"lowest":  "Lowest playoff score",
+		"blowout": "Biggest playoff blowout",
+		"closest": "Closest playoff win",
+	})
+
+	if mostWins := findMostPlayoffWinsLeader(playoffOwnerTotals); mostWins != nil {
+		highlightCards = append(highlightCards, HighlightCard{Label: "Most playoff wins", Value: float64(mostWins.Wins), ValueText: "wins", Owner: mostWins.Owner, Detail: "Winners-bracket games only"})
+	}
+	if mostTitles := findMostPlayoffTitlesLeader(playoffOwnerTotals); mostTitles != nil {
+		highlightCards = append(highlightCards, HighlightCard{Label: "Most postseason titles", Value: float64(mostTitles.Titles), ValueText: "titles", Owner: mostTitles.Owner, Detail: "Winners of the final winners-bracket matchup"})
+	}
+
+	return highlightCards
+}
+
+func buildRecordCards(records *recordBook, labels map[string]string) []HighlightCard {
+	highlightCards := make([]HighlightCard, 0, 6)
+	if records.highestScore != nil {
+		highlightCards = append(highlightCards, HighlightCard{Label: labels["highest"], Value: records.highestScore.Score, ValueText: "points", Owner: records.highestScore.Owner, TeamName: records.highestScore.TeamName, Opponent: records.highestScore.Opponent, Year: records.highestScore.Year, Week: records.highestScore.Week, Detail: records.highestScore.Detail})
+	}
+	if records.lowestScore != nil {
+		highlightCards = append(highlightCards, HighlightCard{Label: labels["lowest"], Value: records.lowestScore.Score, ValueText: "points", Owner: records.lowestScore.Owner, TeamName: records.lowestScore.TeamName, Opponent: records.lowestScore.Opponent, Year: records.lowestScore.Year, Week: records.lowestScore.Week, Detail: records.lowestScore.Detail})
+	}
+	if records.biggestBlowout != nil {
+		highlightCards = append(highlightCards, HighlightCard{Label: labels["blowout"], Value: records.biggestBlowout.Margin, ValueText: "point margin", Owner: records.biggestBlowout.Owner, TeamName: records.biggestBlowout.TeamName, Opponent: records.biggestBlowout.Opponent, Year: records.biggestBlowout.Year, Week: records.biggestBlowout.Week, Detail: records.biggestBlowout.Detail})
+	}
+	if records.closestWin != nil {
+		highlightCards = append(highlightCards, HighlightCard{Label: labels["closest"], Value: records.closestWin.Margin, ValueText: "point margin", Owner: records.closestWin.Owner, TeamName: records.closestWin.TeamName, Opponent: records.closestWin.Opponent, Year: records.closestWin.Year, Week: records.closestWin.Week, Detail: records.closestWin.Detail})
+	}
+	return highlightCards
 }
 
 func findChampionshipMatch(matchups []db.GetMatchupsByLeagueIdRow) *db.GetMatchupsByLeagueIdRow {
@@ -520,6 +585,32 @@ func findMostPointsAgainstLeader(ownerTotals []OwnerTotal) *OwnerTotal {
 	leader := ownerTotals[0]
 	for _, total := range ownerTotals[1:] {
 		if total.PointsAgainst > leader.PointsAgainst || (total.PointsAgainst == leader.PointsAgainst && total.Wins < leader.Wins) {
+			leader = total
+		}
+	}
+	return &leader
+}
+
+func findMostPlayoffWinsLeader(playoffOwnerTotals []PlayoffOwnerTotal) *PlayoffOwnerTotal {
+	if len(playoffOwnerTotals) == 0 {
+		return nil
+	}
+	leader := playoffOwnerTotals[0]
+	for _, total := range playoffOwnerTotals[1:] {
+		if total.Wins > leader.Wins || (total.Wins == leader.Wins && total.Titles > leader.Titles) {
+			leader = total
+		}
+	}
+	return &leader
+}
+
+func findMostPlayoffTitlesLeader(playoffOwnerTotals []PlayoffOwnerTotal) *PlayoffOwnerTotal {
+	if len(playoffOwnerTotals) == 0 {
+		return nil
+	}
+	leader := playoffOwnerTotals[0]
+	for _, total := range playoffOwnerTotals[1:] {
+		if total.Titles > leader.Titles || (total.Titles == leader.Titles && total.Wins > leader.Wins) {
 			leader = total
 		}
 	}
