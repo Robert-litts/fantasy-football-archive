@@ -19,6 +19,7 @@ SELECT
     d."team_id",
     t."teamName" AS "team_name",
     d."player_id",
+    p."espnId" AS "player_espn_id",
     p."name" AS "player_name",
     d."overallPick",
     d."roundNum",

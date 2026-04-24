@@ -1,9 +1,38 @@
 package templates
 
 import (
+	"fmt"
 	"github.com/Robert-litts/fantasy-football-archive/internal/db"
 	"strconv"
+	"strings"
 )
+
+func draftPlayerImageURL(playerEspnID int32) string {
+	return fmt.Sprintf("https://a.espncdn.com/combiner/i?img=/i/headshots/nfl/players/full/%d.png&w=96&h=96&scale=crop", playerEspnID)
+}
+
+func draftPlayerInitials(name string) string {
+	parts := strings.Fields(name)
+	if len(parts) == 0 {
+		return "?"
+	}
+
+	first := firstCharacter(parts[0])
+	if len(parts) == 1 {
+		return strings.ToUpper(first)
+	}
+
+	last := firstCharacter(parts[len(parts)-1])
+	return strings.ToUpper(first + last)
+}
+
+func firstCharacter(value string) string {
+	for _, r := range value {
+		return string(r)
+	}
+
+	return ""
+}
 
 templ DraftBoard(drafts []db.GetDraftBoardWithSummaryRow, leagues []db.GetAllLeaguesRow, selectedLeagueID int, maxRounds, maxPicks int) {
 	<div id="draftboard-container" class="min-h-screen px-4 py-8 bg-gray-900">
@@ -32,13 +61,26 @@ templ DraftBoard(drafts []db.GetDraftBoardWithSummaryRow, leagues []db.GetAllLea
 												<div class="text-sm font-medium text-gray-400">
 													Round { strconv.Itoa(int(drafts[idx].RoundNum)) } Pick { strconv.Itoa(int(drafts[idx].RoundPick)) }
 												</div>
+												<div class="flex items-center gap-3">
+													<div class="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-700 ring-1 ring-gray-600">
+														<span class="text-sm font-semibold tracking-wide text-gray-300">{ draftPlayerInitials(drafts[idx].PlayerName) }</span>
+														<img
+															src={ draftPlayerImageURL(drafts[idx].PlayerEspnID) }
+															alt={ drafts[idx].PlayerName + " headshot" }
+															loading="lazy"
+															referrerpolicy="no-referrer"
+															onerror="this.remove()"
+															class="absolute inset-0 h-full w-full object-cover"
+														/>
+													</div>
+													<div class="min-w-0">
+														<div class="text-sm font-semibold text-gray-100 truncate">{ drafts[idx].PlayerName }</div>
+														<div class="text-xs text-gray-500">Picked by { drafts[idx].TeamName }</div>
+													</div>
+												</div>
 												<div class="flex justify-between items-center">
 													<span class="text-xs text-gray-500">Overall</span>
 													<span class="text-sm font-bold text-gray-300">#{ strconv.Itoa(int(drafts[idx].OverallPick)) }</span>
-												</div>
-												<div class="flex justify-between items-center">
-													<span class="text-xs text-gray-500">Player Name</span>
-													<span class="text-sm font-medium text-gray-300">{ drafts[idx].PlayerName }</span>
 												</div>
 												<div class="flex justify-between items-center">
 													<span class="text-xs text-gray-500">Team</span>
