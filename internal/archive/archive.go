@@ -37,6 +37,23 @@ type LeagueList struct {
 	SleeperMessage   string
 }
 
+type SeasonResultList struct {
+	Seasons          []SeasonResult
+	SleeperAvailable bool
+	SleeperMessage   string
+}
+
+type SeasonResult struct {
+	Provider      Provider
+	Season        int32
+	LeagueName    string
+	TeamCount     int32
+	Champion      string
+	ChampionOwner string
+	RunnerUp      string
+	RunnerUpOwner string
+}
+
 type ESPNLeagueLister interface {
 	GetLeaguesAsc(context.Context, db.GetLeaguesAscParams) ([]db.League, error)
 }
@@ -79,6 +96,33 @@ func (s *Service) ListLeagueSummaries(ctx context.Context) (LeagueList, error) {
 
 func (s *Service) ListCanonicalLeagueSummaries(ctx context.Context) (LeagueList, error) {
 	return s.listLeagueSummaries(ctx, true)
+}
+
+func (s *Service) ListSeasonResults(ctx context.Context) (SeasonResultList, error) {
+	leagueList, err := s.ListCanonicalLeagueSummaries(ctx)
+	if err != nil {
+		return SeasonResultList{}, err
+	}
+
+	results := SeasonResultList{
+		Seasons:          make([]SeasonResult, 0, len(leagueList.Leagues)),
+		SleeperAvailable: leagueList.SleeperAvailable,
+		SleeperMessage:   leagueList.SleeperMessage,
+	}
+	for _, league := range leagueList.Leagues {
+		results.Seasons = append(results.Seasons, SeasonResult{
+			Provider:      league.Provider,
+			Season:        league.Season,
+			LeagueName:    league.Name,
+			TeamCount:     league.TeamCount,
+			Champion:      league.Champion,
+			ChampionOwner: league.ChampionOwner,
+			RunnerUp:      league.RunnerUp,
+			RunnerUpOwner: league.RunnerUpOwner,
+		})
+	}
+
+	return results, nil
 }
 
 func (s *Service) listLeagueSummaries(ctx context.Context, canonicalOnly bool) (LeagueList, error) {

@@ -229,6 +229,53 @@ func TestListCanonicalLeagueSummariesIncludesAnyCanonicalSleeperLeagueWithoutCon
 	}
 }
 
+func TestListSeasonResultsUsesCanonicalLeagueSummaries(t *testing.T) {
+	svc := New(
+		espnStub{leagues: []db.League{
+			{ID: 11, LeagueId: 1001, Year: 2021, TeamCount: 10},
+		}},
+		espnMatchupStub{matchups: map[int32][]db.GetMatchupsByLeagueIdRow{
+			11: {
+				{
+					Week:           15,
+					HomeTeamID:     validID(1),
+					AwayTeamID:     validID(2),
+					HomeScore:      120,
+					AwayScore:      100,
+					IsPlayoff:      true,
+					MatchupType:    "WINNERS_BRACKET",
+					HomeTeamName:   "ESPN Champ",
+					HomeTeamOwners: "Alice",
+					AwayTeamName:   "ESPN Runner",
+					AwayTeamOwners: "Bob",
+				},
+			},
+		}},
+		sleeperStub{reports: []sleeperdb.ListLeagueReportsRow{
+			{LeagueID: 2001, SleeperLeagueID: "main-sleeper", CanonicalLeagueID: "main-sleeper", Season: 2022, Name: "Main League", TeamCount: 12, ChampionTeamName: "Sleeper Champ", RunnerUpTeamName: "Sleeper Runner"},
+			{LeagueID: 2002, SleeperLeagueID: "side-sleeper", CanonicalLeagueID: "", Season: 2022, Name: "Other League", TeamCount: 10, ChampionTeamName: "Side Champ"},
+		}},
+		nil,
+		map[string]string{"alice": "Alice"},
+		"main-sleeper",
+	)
+
+	got, err := svc.ListSeasonResults(context.Background())
+	if err != nil {
+		t.Fatalf("ListSeasonResults returned error: %v", err)
+	}
+
+	if len(got.Seasons) != 2 {
+		t.Fatalf("len(Seasons) = %d, want ESPN plus canonical Sleeper season", len(got.Seasons))
+	}
+	if got.Seasons[0].Season != 2021 || got.Seasons[0].Champion != "ESPN Champ" {
+		t.Fatalf("season[0] = %#v, want ESPN 2021 result", got.Seasons[0])
+	}
+	if got.Seasons[1].Season != 2022 || got.Seasons[1].Champion != "Sleeper Champ" {
+		t.Fatalf("season[1] = %#v, want Sleeper 2022 result", got.Seasons[1])
+	}
+}
+
 type espnStub struct {
 	leagues []db.League
 	err     error
