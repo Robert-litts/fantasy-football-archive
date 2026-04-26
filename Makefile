@@ -80,6 +80,11 @@ tidy:
 	@echo 'Tidying module dependencies...'
 	go mod tidy
 
+## sqlc/generate: regenerate sqlc database packages
+.PHONY: sqlc/generate
+sqlc/generate:
+	sqlc generate
+
 ## audit: run quality control checks
 .PHONY: audit
 audit:

@@ -30,6 +30,7 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodGet, "/api/v1/leagues/:id/teams/:id", app.showTeamHandler)
 	router.HandlerFunc(http.MethodGet, "/api/v1/leagues/:id/drafts", app.apiListLeagueDraftsHandler)
 	router.HandlerFunc(http.MethodGet, "/api/v1/leagues/:id/matchups", app.apiListLeagueMatchupsHandler)
+	router.HandlerFunc(http.MethodGet, "/api/v1/sleeper/report", app.sleeperReportHandler)
 
 	// Compatibility aliases for the original API routes.
 	router.HandlerFunc(http.MethodGet, "/v1/healthcheck", app.healthcheckHandler)
@@ -65,6 +66,7 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodGet, "/app/draftboard", app.requireAuthenticated(app.appDraftBoardFragmentHandler))
 	router.HandlerFunc(http.MethodGet, "/app/stats", app.requireAuthenticated(app.statsHandler))
 	router.HandlerFunc(http.MethodGet, "/app/rules", app.requireAuthenticated(app.rulesHandler))
+	router.HandlerFunc(http.MethodGet, "/app/sleeper/report", app.requireAuthenticated(app.sleeperReportPageHandler))
 
 	// App fragment routes render HTMX partials.
 	router.HandlerFunc(http.MethodGet, "/app/fragments/user-info", app.requireAuthenticated(app.appUserInfoFragmentHandler))

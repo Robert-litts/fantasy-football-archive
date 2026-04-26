@@ -90,7 +90,7 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 			"activationToken": token.Plaintext,
 			"userID":          user.ID,
 		}
-			app.logger.Info("User data info", "data", data)
+		app.logger.Info("User data info", "data", data)
 
 		err = app.mailer.Send(user.Email, "user_welcome.tmpl", data)
 		if err != nil {

@@ -24,3 +24,30 @@ OWNER_ALIASES_JSON={"Mark Jacobs":"Bob Smith","Bigen Bulgey":"John Jones"}
 ```
 
 This only affects cross-season stats rollups. Historical season data remains unchanged.
+
+### Sleeper archive integration
+
+The web app can read the preserved ESPN database and the newer Sleeper archive database side by side.
+
+For local development outside Docker, configure both database URLs:
+
+```env
+ESPN_DATABASE_URL=postgres://sleeper:sleeper@localhost:5434/fantasy_espn_clone?sslmode=disable
+SLEEPER_DATABASE_URL=postgres://sleeper:sleeper@localhost:5434/sleeper_archive?sslmode=disable
+```
+
+For Docker Compose on Linux, the API container cannot use `localhost` to reach a Postgres instance running on the host machine. Either set these overrides in your `.env`, or let Compose fall back to its built-in defaults:
+
+```env
+DOCKER_ESPN_DATABASE_URL=postgres://sleeper:sleeper@host.docker.internal:5434/fantasy_espn_clone?sslmode=disable
+DOCKER_SLEEPER_DATABASE_URL=postgres://sleeper:sleeper@host.docker.internal:5434/sleeper_archive?sslmode=disable
+```
+
+`DB_URL` is still supported as a fallback for the ESPN database.
+
+Initial Sleeper smoke-test routes:
+
+```text
+GET /api/v1/sleeper/report
+GET /app/sleeper/report
+```

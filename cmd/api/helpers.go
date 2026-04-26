@@ -173,7 +173,7 @@ func parseOwnerAliasesJSON(raw string) (map[string]string, error) {
 	return normalizedAliases, nil
 }
 
-func loadEnvironment() (string, string, int, string, map[string]string, string, int, int, time.Duration, string, string, string, string, int) {
+func loadEnvironment() (string, string, int, string, map[string]string, string, string, int, int, time.Duration, string, string, string, string, int) {
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env found, using system .env variables")
 	}
@@ -200,10 +200,16 @@ func loadEnvironment() (string, string, int, string, map[string]string, string, 
 		log.Fatal(err)
 	}
 
-	dsn := os.Getenv("DB_URL")
+	dsn := os.Getenv("ESPN_DATABASE_URL")
 	if dsn == "" {
-		log.Fatal("DB_URL environment variable not set")
+		dsn = os.Getenv("DB_URL")
 	}
+	if dsn == "" {
+		log.Fatal("ESPN_DATABASE_URL or DB_URL environment variable not set")
+	}
+
+	sleeperDSN := os.Getenv("SLEEPER_DATABASE_URL")
+
 	dbMaxOpenConns, err := strconv.Atoi(os.Getenv("DB_MAX_OPEN_CONNS"))
 	if err != nil {
 		log.Fatal("DB_MAX_OPEN_CONNS environment variable not set")
@@ -235,7 +241,7 @@ func loadEnvironment() (string, string, int, string, map[string]string, string, 
 	}
 
 	//return the env variables
-	return leagueID, baseCallbackURL, port, env, ownerAliases, dsn, dbMaxOpenConns, dbMaxIdleConns, dbMaxIdleTime, sessionKey, sendGridKey, redisAddr, redisPassword, redisDB
+	return leagueID, baseCallbackURL, port, env, ownerAliases, dsn, sleeperDSN, dbMaxOpenConns, dbMaxIdleConns, dbMaxIdleTime, sessionKey, sendGridKey, redisAddr, redisPassword, redisDB
 }
 
 // The background() helper accepts an arbitrary function as a parameter.
