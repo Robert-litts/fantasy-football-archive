@@ -1,22 +1,38 @@
 package templates
 
 import (
-	"github.com/Robert-litts/fantasy-football-archive/internal/db"
+	"github.com/Robert-litts/fantasy-football-archive/internal/archive"
 	"strconv"
 )
 
-templ Leagues(leagues []db.League) {
+templ Leagues(page archive.LeagueList) {
 	<div class="min-h-screen px-4 py-8">
-		<div class="max-w-7xl mx-auto">
-			<div class="leagues-dashboard">
-				<h1 class="text-3xl font-bold mb-6">Fantasy Football Leagues</h1>
-				<div class="overflow-x-auto rounded-lg shadow">
+		<div class="mx-auto max-w-7xl">
+			<div class="rounded-2xl border border-slate-700 bg-slate-950/80 p-6 shadow-2xl shadow-black/20">
+				<div class="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+					<div>
+						<p class="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">Archive view</p>
+						<h1 class="text-3xl font-bold text-white">Fantasy Football Leagues</h1>
+						<p class="mt-2 max-w-3xl text-sm text-slate-400">
+							One read model for ESPN history and Sleeper seasons, sorted together so you can browse the archive without caring where a league came from.
+						</p>
+					</div>
+					<div class="rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
+						{ strconv.Itoa(len(page.Leagues)) } leagues loaded
+					</div>
+				</div>
+				if page.SleeperMessage != "" {
+					<div class="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+						{ page.SleeperMessage }
+					</div>
+				}
+				<div class="overflow-x-auto rounded-xl border border-slate-800">
 					<div
 						id="leagues-list"
 						hx-get="/app/fragments/leagues-table"
 						hx-trigger="load, every 30s"
 					>
-						@LeaguesTable(leagues)
+						@LeaguesTable(page.Leagues)
 					</div>
 				</div>
 			</div>
@@ -24,49 +40,52 @@ templ Leagues(leagues []db.League) {
 	</div>
 }
 
-templ LeaguesTable(leagues []db.League) {
-	<table class="min-w-full divide-y divide-gray-700 bg-gray-800 border border-gray-700 rounded-lg overflow-hidden">
-		<thead>
+templ LeaguesTable(leagues []archive.LeagueSummary) {
+	<table class="min-w-full divide-y divide-slate-800 bg-slate-950">
+		<thead class="bg-slate-900/80">
 			<tr>
-				<th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider border-b border-gray-700">League ID</th>
-				<th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider border-b border-gray-700">Year</th>
-				<th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider border-b border-gray-700">Team Count</th>
+				<th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Provider</th>
+				<th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Season</th>
+				<th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">League</th>
+				<th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Teams</th>
+				<th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Champion</th>
+				<th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Runner-Up</th>
 			</tr>
 		</thead>
-		<tbody class="bg-gray-900 divide-y divide-gray-700">
+		<tbody class="divide-y divide-slate-800 bg-slate-950">
 			for _, league := range leagues {
-				<tr class="hover:bg-gray-800 transition-colors">
-					<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300 border-x border-gray-700">{ strconv.Itoa(int(league.ID)) }</td>
-					<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300 border-x border-gray-700">{ strconv.Itoa(int(league.Year)) }</td>
-					<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300 border-x border-gray-700">{ strconv.Itoa(int(league.TeamCount)) }</td>
+				<tr class="transition-colors hover:bg-slate-900/70">
+					<td class="whitespace-nowrap px-5 py-4 text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">{ string(league.Provider) }</td>
+					<td class="whitespace-nowrap px-5 py-4 text-sm text-slate-200">{ strconv.Itoa(int(league.Season)) }</td>
+					<td class="px-5 py-4 text-sm text-slate-200">{ league.Name }</td>
+					<td class="whitespace-nowrap px-5 py-4 text-sm text-slate-300">{ strconv.Itoa(int(league.TeamCount)) }</td>
+					<td class="px-5 py-4 text-sm text-slate-300">
+						if league.Champion != "" {
+							{ league.Champion }
+							if league.ChampionOwner != "" {
+								<span class="ml-1 text-xs font-normal text-slate-500">({ league.ChampionOwner })</span>
+							}
+						} else {
+							<span class="text-slate-500">Not recorded</span>
+						}
+					</td>
+					<td class="px-5 py-4 text-sm text-slate-300">
+						if league.RunnerUp != "" {
+							{ league.RunnerUp }
+							if league.RunnerUpOwner != "" {
+								<span class="ml-1 text-xs font-normal text-slate-500">({ league.RunnerUpOwner })</span>
+							}
+						} else {
+							<span class="text-slate-500">Not recorded</span>
+						}
+					</td>
+				</tr>
+			}
+			if len(leagues) == 0 {
+				<tr>
+					<td colspan="7" class="px-5 py-8 text-center text-sm text-slate-500">No leagues found.</td>
 				</tr>
 			}
 		</tbody>
 	</table>
-}
-
-templ LeaguePage(leagues []db.GetAllLeaguesRow) {
-	<div class="max-w-7xl mx-auto">
-		<h1 class="text-3xl font-bold mb-6">Leagues</h1>
-		<div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-			for _, league := range leagues {
-				<a
-					href="#"
-					hx-get={ "/app/fragments/draft-board/" + strconv.Itoa(int(league.ID)) }
-					hx-target="main"
-					class="bg-gray-800 p-6 rounded-lg border border-gray-700 hover:border-blue-500 transition-colors"
-				>
-					<h2 class="text-xl font-semibold text-gray-100 mb-2">
-						Season { strconv.Itoa(int(league.Year)) }
-					</h2>
-					<p class="text-gray-400">
-						League ID { strconv.Itoa(int(league.ID)) }
-					</p>
-					<p class="text-gray-400">
-						Year: { strconv.Itoa(int(league.Year)) }
-					</p>
-				</a>
-			}
-		</div>
-	</div>
 }
