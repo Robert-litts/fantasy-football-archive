@@ -54,24 +54,34 @@ type SleeperTeamLister interface {
 }
 
 type Service struct {
-	espn         ESPNLeagueLister
-	espnMatchups ESPNMatchupLister
-	sleeper      SleeperLeagueReporter
-	sleeperTeams SleeperTeamLister
-	ownerAliases map[string]string
+	espn                ESPNLeagueLister
+	espnMatchups        ESPNMatchupLister
+	sleeper             SleeperLeagueReporter
+	sleeperTeams        SleeperTeamLister
+	ownerAliases        map[string]string
+	mainSleeperLeagueID string
 }
 
-func New(espn ESPNLeagueLister, espnMatchups ESPNMatchupLister, sleeper SleeperLeagueReporter, sleeperTeams SleeperTeamLister, ownerAliases map[string]string) *Service {
+func New(espn ESPNLeagueLister, espnMatchups ESPNMatchupLister, sleeper SleeperLeagueReporter, sleeperTeams SleeperTeamLister, ownerAliases map[string]string, mainSleeperLeagueID string) *Service {
 	return &Service{
-		espn:         espn,
-		espnMatchups: espnMatchups,
-		sleeper:      sleeper,
-		sleeperTeams: sleeperTeams,
-		ownerAliases: ownerAliases,
+		espn:                espn,
+		espnMatchups:        espnMatchups,
+		sleeper:             sleeper,
+		sleeperTeams:        sleeperTeams,
+		ownerAliases:        ownerAliases,
+		mainSleeperLeagueID: strings.TrimSpace(mainSleeperLeagueID),
 	}
 }
 
 func (s *Service) ListLeagueSummaries(ctx context.Context) (LeagueList, error) {
+	return s.listLeagueSummaries(ctx, false)
+}
+
+func (s *Service) ListCanonicalLeagueSummaries(ctx context.Context) (LeagueList, error) {
+	return s.listLeagueSummaries(ctx, true)
+}
+
+func (s *Service) listLeagueSummaries(ctx context.Context, canonicalOnly bool) (LeagueList, error) {
 	result := LeagueList{
 		Leagues: make([]LeagueSummary, 0),
 	}
@@ -123,6 +133,9 @@ func (s *Service) ListLeagueSummaries(ctx context.Context) (LeagueList, error) {
 
 	result.SleeperAvailable = true
 	for _, league := range sleeperLeagues {
+		if canonicalOnly && !s.includesMainSleeperLeague(league.CanonicalLeagueID) {
+			continue
+		}
 		championOwner, runnerUpOwner := "", ""
 		if s.sleeperTeams != nil {
 			championOwner, runnerUpOwner = s.sleeperFinalists(ctx, league.LeagueID)
@@ -130,7 +143,7 @@ func (s *Service) ListLeagueSummaries(ctx context.Context) (LeagueList, error) {
 		result.Leagues = append(result.Leagues, LeagueSummary{
 			Provider:      ProviderSleeper,
 			ID:            league.LeagueID,
-			ExternalID:    strconv.FormatInt(league.LeagueID, 10),
+			ExternalID:    league.SleeperLeagueID,
 			Season:        league.Season,
 			Name:          league.Name,
 			TeamCount:     int32(league.TeamCount),
@@ -143,6 +156,14 @@ func (s *Service) ListLeagueSummaries(ctx context.Context) (LeagueList, error) {
 
 	sortLeagueSummaries(result.Leagues)
 	return result, nil
+}
+
+func (s *Service) includesMainSleeperLeague(canonicalLeagueID string) bool {
+	canonicalLeagueID = strings.TrimSpace(canonicalLeagueID)
+	if s.mainSleeperLeagueID == "" {
+		return canonicalLeagueID != ""
+	}
+	return canonicalLeagueID == s.mainSleeperLeagueID
 }
 
 func (s *Service) espnFinalists(ctx context.Context, leagueID int32) (champion, championOwner, runnerUp, runnerUpOwner string, ok bool, err error) {

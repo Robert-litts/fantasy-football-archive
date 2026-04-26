@@ -10,7 +10,7 @@ import (
 )
 
 const getLeagueByID = `-- name: GetLeagueByID :one
-SELECT id, sleeper_league_id, season, name, status, sport, total_rosters, draft_id, avatar, roster_positions, scoring_settings, league_settings, created_at, updated_at FROM leagues
+SELECT id, sleeper_league_id, previous_league_id, canonical_league_id, season, name, status, sport, total_rosters, draft_id, avatar, roster_positions, scoring_settings, league_settings, created_at, updated_at FROM leagues
 WHERE id = $1
 `
 
@@ -20,6 +20,8 @@ func (q *Queries) GetLeagueByID(ctx context.Context, id int64) (League, error) {
 	err := row.Scan(
 		&i.ID,
 		&i.SleeperLeagueID,
+		&i.PreviousLeagueID,
+		&i.CanonicalLeagueID,
 		&i.Season,
 		&i.Name,
 		&i.Status,
@@ -37,7 +39,7 @@ func (q *Queries) GetLeagueByID(ctx context.Context, id int64) (League, error) {
 }
 
 const getLeagueBySleeperID = `-- name: GetLeagueBySleeperID :one
-SELECT id, sleeper_league_id, season, name, status, sport, total_rosters, draft_id, avatar, roster_positions, scoring_settings, league_settings, created_at, updated_at FROM leagues
+SELECT id, sleeper_league_id, previous_league_id, canonical_league_id, season, name, status, sport, total_rosters, draft_id, avatar, roster_positions, scoring_settings, league_settings, created_at, updated_at FROM leagues
 WHERE sleeper_league_id = $1
 `
 
@@ -47,6 +49,8 @@ func (q *Queries) GetLeagueBySleeperID(ctx context.Context, sleeperLeagueID stri
 	err := row.Scan(
 		&i.ID,
 		&i.SleeperLeagueID,
+		&i.PreviousLeagueID,
+		&i.CanonicalLeagueID,
 		&i.Season,
 		&i.Name,
 		&i.Status,
@@ -64,7 +68,7 @@ func (q *Queries) GetLeagueBySleeperID(ctx context.Context, sleeperLeagueID stri
 }
 
 const listLeagues = `-- name: ListLeagues :many
-SELECT id, sleeper_league_id, season, name, status, sport, total_rosters, draft_id, avatar, roster_positions, scoring_settings, league_settings, created_at, updated_at FROM leagues
+SELECT id, sleeper_league_id, previous_league_id, canonical_league_id, season, name, status, sport, total_rosters, draft_id, avatar, roster_positions, scoring_settings, league_settings, created_at, updated_at FROM leagues
 ORDER BY season ASC, name ASC
 `
 
@@ -80,6 +84,8 @@ func (q *Queries) ListLeagues(ctx context.Context) ([]League, error) {
 		if err := rows.Scan(
 			&i.ID,
 			&i.SleeperLeagueID,
+			&i.PreviousLeagueID,
+			&i.CanonicalLeagueID,
 			&i.Season,
 			&i.Name,
 			&i.Status,
@@ -107,7 +113,7 @@ func (q *Queries) ListLeagues(ctx context.Context) ([]League, error) {
 }
 
 const listLeaguesBySeason = `-- name: ListLeaguesBySeason :many
-SELECT id, sleeper_league_id, season, name, status, sport, total_rosters, draft_id, avatar, roster_positions, scoring_settings, league_settings, created_at, updated_at FROM leagues
+SELECT id, sleeper_league_id, previous_league_id, canonical_league_id, season, name, status, sport, total_rosters, draft_id, avatar, roster_positions, scoring_settings, league_settings, created_at, updated_at FROM leagues
 WHERE season = $1
 ORDER BY name ASC
 `
@@ -124,6 +130,8 @@ func (q *Queries) ListLeaguesBySeason(ctx context.Context, season int32) ([]Leag
 		if err := rows.Scan(
 			&i.ID,
 			&i.SleeperLeagueID,
+			&i.PreviousLeagueID,
+			&i.CanonicalLeagueID,
 			&i.Season,
 			&i.Name,
 			&i.Status,

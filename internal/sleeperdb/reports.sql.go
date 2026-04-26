@@ -12,6 +12,8 @@ import (
 const listLeagueReports = `-- name: ListLeagueReports :many
 SELECT
     l.id AS league_id,
+    l.sleeper_league_id,
+    coalesce(l.canonical_league_id, '')::text AS canonical_league_id,
     l.season,
     l.name,
     l.total_rosters,
@@ -79,6 +81,8 @@ ORDER BY l.season ASC, l.name ASC
 
 type ListLeagueReportsRow struct {
 	LeagueID                   int64  `json:"league_id"`
+	SleeperLeagueID            string `json:"sleeper_league_id"`
+	CanonicalLeagueID          string `json:"canonical_league_id"`
 	Season                     int32  `json:"season"`
 	Name                       string `json:"name"`
 	TotalRosters               int32  `json:"total_rosters"`
@@ -105,6 +109,8 @@ func (q *Queries) ListLeagueReports(ctx context.Context) ([]ListLeagueReportsRow
 		var i ListLeagueReportsRow
 		if err := rows.Scan(
 			&i.LeagueID,
+			&i.SleeperLeagueID,
+			&i.CanonicalLeagueID,
 			&i.Season,
 			&i.Name,
 			&i.TotalRosters,

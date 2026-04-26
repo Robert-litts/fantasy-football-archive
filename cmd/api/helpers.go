@@ -173,7 +173,7 @@ func parseOwnerAliasesJSON(raw string) (map[string]string, error) {
 	return normalizedAliases, nil
 }
 
-func loadEnvironment() (string, string, int, string, map[string]string, string, string, int, int, time.Duration, string, string, string, string, int) {
+func loadEnvironment() (string, string, string, int, string, map[string]string, string, string, int, int, time.Duration, string, string, string, string, int) {
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env found, using system .env variables")
 	}
@@ -181,6 +181,7 @@ func loadEnvironment() (string, string, int, string, map[string]string, string, 
 	if leagueID == "" {
 		log.Fatal("Sleeper League ID environment variable not set")
 	}
+	sleeperMainLeagueID := strings.TrimSpace(os.Getenv("SLEEPER_MAIN_LEAGUE_ID"))
 	baseCallbackURL := os.Getenv("BASE_CALLBACK_URL")
 	if baseCallbackURL == "" {
 		log.Fatal("Base Callback URL environment variable not set")
@@ -241,7 +242,7 @@ func loadEnvironment() (string, string, int, string, map[string]string, string, 
 	}
 
 	//return the env variables
-	return leagueID, baseCallbackURL, port, env, ownerAliases, dsn, sleeperDSN, dbMaxOpenConns, dbMaxIdleConns, dbMaxIdleTime, sessionKey, sendGridKey, redisAddr, redisPassword, redisDB
+	return leagueID, sleeperMainLeagueID, baseCallbackURL, port, env, ownerAliases, dsn, sleeperDSN, dbMaxOpenConns, dbMaxIdleConns, dbMaxIdleTime, sessionKey, sendGridKey, redisAddr, redisPassword, redisDB
 }
 
 // The background() helper accepts an arbitrary function as a parameter.

@@ -34,7 +34,11 @@ For local development outside Docker, configure both database URLs:
 ```env
 ESPN_DATABASE_URL=postgres://sleeper:sleeper@localhost:5434/fantasy_espn_clone?sslmode=disable
 SLEEPER_DATABASE_URL=postgres://sleeper:sleeper@localhost:5434/sleeper_archive?sslmode=disable
+SLEEPER_LEAGUE_ID=123456789012345678
+SLEEPER_MAIN_LEAGUE_ID=123456789012345678
 ```
+
+`SLEEPER_MAIN_LEAGUE_ID` should match the lineage seed used by the Sleeper archive. Canonical long-term archive stats use the Sleeper database's `canonical_league_id` values to exclude other leagues archived from the same user account. If it is omitted, the web app includes Sleeper leagues with any non-empty `canonical_league_id`.
 
 For Docker Compose on Linux, the API container cannot use `localhost` to reach a Postgres instance running on the host machine. Either set these overrides in your `.env`, or let Compose fall back to its built-in defaults:
 

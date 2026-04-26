@@ -59,8 +59,9 @@ type config struct {
 		baseCallbackURL string
 		providers       map[string]ProviderConfig
 	}
-	sessionKey      string
-	sleeperLeagueID string
+	sessionKey          string
+	sleeperLeagueID     string
+	sleeperMainLeagueID string
 }
 
 type application struct {
@@ -78,7 +79,7 @@ type application struct {
 
 func main() {
 	// Load environment variables
-	sleeperLeagueID, baseCallbackURL, port, env, ownerAliases, dsn, sleeperDSN, dbMaxOpenConns, dbMaxIdleConns, dbMaxIdleTime, sessionKey, sendGridKey, redisAddr, redisPassword, redisDB := loadEnvironment()
+	sleeperLeagueID, sleeperMainLeagueID, baseCallbackURL, port, env, ownerAliases, dsn, sleeperDSN, dbMaxOpenConns, dbMaxIdleConns, dbMaxIdleTime, sessionKey, sendGridKey, redisAddr, redisPassword, redisDB := loadEnvironment()
 
 	var cfg config
 
@@ -97,6 +98,7 @@ func main() {
 	cfg.sleeperDB.maxIdleTime = cfg.db.maxIdleTime
 
 	cfg.sleeperLeagueID = sleeperLeagueID
+	cfg.sleeperMainLeagueID = sleeperMainLeagueID
 	cfg.ownerAliases = ownerAliases
 	cfg.redis.addr = redisAddr
 	cfg.redis.password = redisPassword
@@ -174,7 +176,7 @@ func main() {
 		logger:         logger,
 		queries:        queries,
 		sleeperQueries: sleeperQueries,
-		archive:        archive.New(queries, queries, sleeperQueries, sleeperQueries, cfg.ownerAliases),
+		archive:        archive.New(queries, queries, sleeperQueries, sleeperQueries, cfg.ownerAliases, cfg.sleeperMainLeagueID),
 		sessionStore:   store,
 		mailer:         mailer.New(sendGridKey, "FFArchive <robert@litts.org>", logger),
 		authManager:    NewAuthManager(),

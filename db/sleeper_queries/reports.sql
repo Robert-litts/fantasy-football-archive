@@ -1,6 +1,8 @@
 -- name: ListLeagueReports :many
 SELECT
     l.id AS league_id,
+    l.sleeper_league_id,
+    coalesce(l.canonical_league_id, '')::text AS canonical_league_id,
     l.season,
     l.name,
     l.total_rosters,

@@ -23,6 +23,7 @@ func TestListLeagueSummariesMergesESPNAndSleeper(t *testing.T) {
 		}},
 		nil,
 		nil,
+		"",
 	)
 
 	got, err := svc.ListLeagueSummaries(context.Background())
@@ -70,6 +71,7 @@ func TestListLeagueSummariesHandlesMissingSleeperDatabase(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		"",
 	)
 
 	got, err := svc.ListLeagueSummaries(context.Background())
@@ -95,6 +97,7 @@ func TestListLeagueSummariesReturnsESPNError(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		"",
 	)
 
 	if _, err := svc.ListLeagueSummaries(context.Background()); err == nil {
@@ -127,6 +130,7 @@ func TestListLeagueSummariesDerivesESPNChampions(t *testing.T) {
 		nil,
 		nil,
 		map[string]string{"alice": "Alice"},
+		"",
 	)
 
 	got, err := svc.ListLeagueSummaries(context.Background())
@@ -142,6 +146,86 @@ func TestListLeagueSummariesDerivesESPNChampions(t *testing.T) {
 	}
 	if league.Champion != "Alpha Squad" || league.ChampionOwner != "Alice" || league.RunnerUp != "Beta Crew" || league.RunnerUpOwner != "Bob" {
 		t.Fatalf("league finals = %#v, want champion Alpha Squad (Alice) runner-up Beta Crew (Bob)", league)
+	}
+}
+
+func TestListCanonicalLeagueSummariesFiltersSleeperCanonicalLeagueID(t *testing.T) {
+	svc := New(
+		espnStub{leagues: []db.League{
+			{ID: 11, LeagueId: 1001, Year: 2021, TeamCount: 10},
+		}},
+		nil,
+		sleeperStub{reports: []sleeperdb.ListLeagueReportsRow{
+			{LeagueID: 2001, SleeperLeagueID: "main-sleeper", CanonicalLeagueID: "main-sleeper", Season: 2022, Name: "Main League", TeamCount: 12},
+			{LeagueID: 2002, SleeperLeagueID: "side-sleeper", CanonicalLeagueID: "", Season: 2022, Name: "Other League", TeamCount: 10},
+		}},
+		nil,
+		nil,
+		"main-sleeper",
+	)
+
+	got, err := svc.ListCanonicalLeagueSummaries(context.Background())
+	if err != nil {
+		t.Fatalf("ListCanonicalLeagueSummaries returned error: %v", err)
+	}
+
+	if len(got.Leagues) != 2 {
+		t.Fatalf("len(Leagues) = %d, want ESPN plus one main Sleeper league", len(got.Leagues))
+	}
+	if got.Leagues[0].Provider != ProviderESPN {
+		t.Fatalf("first league = %#v, want ESPN league included", got.Leagues[0])
+	}
+	if got.Leagues[1].Provider != ProviderSleeper || got.Leagues[1].Name != "Main League" {
+		t.Fatalf("second league = %#v, want main Sleeper league only", got.Leagues[1])
+	}
+}
+
+func TestListLeagueSummariesStillShowsAllSleeperLeagues(t *testing.T) {
+	svc := New(
+		espnStub{},
+		nil,
+		sleeperStub{reports: []sleeperdb.ListLeagueReportsRow{
+			{LeagueID: 2001, SleeperLeagueID: "main-sleeper", CanonicalLeagueID: "main-sleeper", Season: 2022, Name: "Main League", TeamCount: 12},
+			{LeagueID: 2002, SleeperLeagueID: "side-sleeper", CanonicalLeagueID: "", Season: 2022, Name: "Other League", TeamCount: 10},
+		}},
+		nil,
+		nil,
+		"main-sleeper",
+	)
+
+	got, err := svc.ListLeagueSummaries(context.Background())
+	if err != nil {
+		t.Fatalf("ListLeagueSummaries returned error: %v", err)
+	}
+
+	if len(got.Leagues) != 2 {
+		t.Fatalf("len(Leagues) = %d, want unfiltered league list", len(got.Leagues))
+	}
+}
+
+func TestListCanonicalLeagueSummariesIncludesAnyCanonicalSleeperLeagueWithoutConfiguredSeed(t *testing.T) {
+	svc := New(
+		espnStub{},
+		nil,
+		sleeperStub{reports: []sleeperdb.ListLeagueReportsRow{
+			{LeagueID: 2001, SleeperLeagueID: "main-sleeper", CanonicalLeagueID: "main-sleeper", Season: 2022, Name: "Main League", TeamCount: 12},
+			{LeagueID: 2002, SleeperLeagueID: "side-sleeper", CanonicalLeagueID: "", Season: 2022, Name: "Other League", TeamCount: 10},
+		}},
+		nil,
+		nil,
+		"",
+	)
+
+	got, err := svc.ListCanonicalLeagueSummaries(context.Background())
+	if err != nil {
+		t.Fatalf("ListCanonicalLeagueSummaries returned error: %v", err)
+	}
+
+	if len(got.Leagues) != 1 {
+		t.Fatalf("len(Leagues) = %d, want one canonical Sleeper league", len(got.Leagues))
+	}
+	if got.Leagues[0].Name != "Main League" {
+		t.Fatalf("league = %#v, want main league", got.Leagues[0])
 	}
 }
 
