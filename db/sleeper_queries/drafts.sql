@@ -6,6 +6,8 @@ SELECT
     p.sleeper_id,
     p.espn_id,
     p.name AS player_name,
+    p.first_name,
+    p.last_name,
     p.position
 FROM drafts d
 JOIN teams t ON t.id = d.team_id

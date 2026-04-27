@@ -21,6 +21,7 @@ SELECT
     d."player_id",
     p."espnId" AS "player_espn_id",
     p."name" AS "player_name",
+    p."position" AS "player_position",
     d."overallPick",
     d."roundNum",
     d."roundPick",
@@ -32,4 +33,3 @@ JOIN "teams" t ON d."team_id" = t."id"
 JOIN "leagues" l ON t."league_id" = l."id"
 WHERE t."league_id" = $1
 ORDER BY d."overallPick";
-

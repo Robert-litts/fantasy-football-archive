@@ -19,6 +19,8 @@ SELECT
     p.sleeper_id,
     p.espn_id,
     p.name AS player_name,
+    p.first_name,
+    p.last_name,
     p.position
 FROM drafts d
 JOIN teams t ON t.id = d.team_id
@@ -45,6 +47,8 @@ type ListDraftPicksByLeagueRow struct {
 	SleeperID    string         `json:"sleeper_id"`
 	EspnID       sql.NullString `json:"espn_id"`
 	PlayerName   string         `json:"player_name"`
+	FirstName    sql.NullString `json:"first_name"`
+	LastName     sql.NullString `json:"last_name"`
 	Position     sql.NullString `json:"position"`
 }
 
@@ -75,6 +79,8 @@ func (q *Queries) ListDraftPicksByLeague(ctx context.Context, leagueID int64) ([
 			&i.SleeperID,
 			&i.EspnID,
 			&i.PlayerName,
+			&i.FirstName,
+			&i.LastName,
 			&i.Position,
 		); err != nil {
 			return nil, err
