@@ -150,6 +150,19 @@ func (app *application) readIntQuery(qs url.Values, key string, v *validator.Val
 	return int32(i) // Return the valid int32 value
 }
 
+func (app *application) readInt64Query(qs url.Values, key string, v *validator.Validator) int64 {
+	s := qs.Get(key)
+	if s == "" {
+		return -1 // Sentinel value to indicate "no value"
+	}
+	i, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		v.AddError(key, "must be an integer value")
+		return -1
+	}
+	return i
+}
+
 func parseOwnerAliasesJSON(raw string) (map[string]string, error) {
 	if strings.TrimSpace(raw) == "" {
 		return map[string]string{}, nil

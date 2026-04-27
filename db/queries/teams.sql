@@ -6,6 +6,8 @@ WHERE "id" = $1;
 -- name: GetTeamsByLeagueYear :many
 SELECT 
     "d"."owners", 
+    "d"."teamAbbrv",
+    "d"."teamName",
     "d"."wins", 
     "d"."losses", 
     "d"."ties", 

@@ -13,9 +13,26 @@ templ Leagues(page archive.LeagueList) {
 					<div>
 						<p class="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">Archive view</p>
 						<h1 class="text-3xl font-bold text-white">Fantasy Football Leagues</h1>
-						<p class="mt-2 max-w-3xl text-sm text-slate-400">
-														View a historical archive of fantasy football leagues from various providers, seasons, and formats. Explore league details, champions, and more.
+						<p class="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+							A unified archive of the league's full run across ESPN and Sleeper. Browse every season, compare champions, and follow the platform transition in one place.
 						</p>
+						<div class="mt-4 flex flex-wrap gap-2">
+							<span class="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-slate-300">
+								ESPN 2013-2021
+							</span>
+							<span class="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-slate-300">
+								Sleeper 2022-present
+							</span>
+							if page.SleeperAvailable {
+								<span class="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-200">
+									Sleeper archive connected
+								</span>
+							} else {
+								<span class="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-amber-100">
+									Sleeper archive unavailable
+								</span>
+							}
+						</div>
 					</div>
 					<div class="rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
 						{ strconv.Itoa(len(page.Leagues)) } leagues loaded
