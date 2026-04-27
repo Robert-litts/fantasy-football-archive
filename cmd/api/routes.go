@@ -60,7 +60,7 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodGet, "/app/home", app.requireAuthenticated(app.homeHandler))
 	router.HandlerFunc(http.MethodGet, "/app/leagues", app.requireAuthenticated(app.appLeaguesPageHandler))
 	router.HandlerFunc(http.MethodGet, "/app/teams", app.requireAuthenticated(app.teamDisplayHandler))
-	router.HandlerFunc(http.MethodGet, "/app/matchups", app.requireAuthenticated(app.appMatchupsTableFragmentHandler))
+	router.HandlerFunc(http.MethodGet, "/app/matchups", app.requireAuthenticated(app.appMatchupsPageHandler))
 	router.HandlerFunc(http.MethodGet, "/app/drafts", app.requireAuthenticated(app.appDraftsPageHandler))
 	router.HandlerFunc(http.MethodGet, "/app/drafts/:id", app.requireAuthenticated(app.draftBoardHandler))
 	router.HandlerFunc(http.MethodGet, "/app/draftboard", app.requireAuthenticated(app.appDraftBoardFragmentHandler))

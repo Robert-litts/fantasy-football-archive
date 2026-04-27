@@ -121,9 +121,16 @@ templ TeamsTable(page teamsview.PageData) {
 					for _, team := range page.Teams {
 						<tr class="transition-colors hover:bg-slate-900/70">
 							<td class="px-5 py-4 text-sm text-slate-200">
-								<div class="font-semibold text-white">{ team.OwnerLabel }</div>
+								<div class={ teamsPodiumNameClass(team.FinalStanding) }>
+									<span>{ team.OwnerLabel }</span>
+									if team.FinalStanding == 1 {
+										@trophyIcon("h-4 w-4 text-yellow-200 drop-shadow-[0_0_6px_rgba(250,204,21,0.55)]")
+									} else if team.FinalStanding == 2 {
+										@trophyIcon("h-4 w-4 text-slate-200 drop-shadow-[0_0_5px_rgba(226,232,240,0.45)]")
+									}
+								</div>
 								if team.TeamLabel != "" {
-									<div class="mt-1 text-xs text-slate-500">{ team.TeamLabel }</div>
+									<div class={ teamsPodiumSubtleClass(team.FinalStanding) }>{ team.TeamLabel }</div>
 								}
 							</td>
 							<td class="whitespace-nowrap px-5 py-4 text-sm text-slate-300">{ strconv.Itoa(int(team.Wins)) }</td>
@@ -145,4 +152,28 @@ templ TeamsTable(page teamsview.PageData) {
 			</table>
 		</div>
 	</div>
+}
+
+func teamsPodiumNameClass(finalStanding int32) string {
+	base := "inline-flex items-center gap-2 font-semibold"
+	switch finalStanding {
+	case 1:
+		return base + " text-yellow-50 drop-shadow-[0_0_8px_rgba(250,204,21,0.42)]"
+	case 2:
+		return base + " text-slate-100 drop-shadow-[0_0_7px_rgba(226,232,240,0.32)]"
+	default:
+		return base + " text-white"
+	}
+}
+
+func teamsPodiumSubtleClass(finalStanding int32) string {
+	base := "mt-1 text-xs"
+	switch finalStanding {
+	case 1:
+		return base + " text-yellow-100/80"
+	case 2:
+		return base + " text-slate-200/75"
+	default:
+		return base + " text-slate-500"
+	}
 }

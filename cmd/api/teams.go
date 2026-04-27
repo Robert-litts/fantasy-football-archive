@@ -125,7 +125,7 @@ func (app *application) teamsPageData(r *http.Request) (teamsview.PageData, erro
 	qs := r.URL.Query()
 	selectedLeagueKey := strings.TrimSpace(qs.Get("id"))
 	if selectedLeagueKey != "" {
-		if _, _, err := parseTeamsLeagueSelectionKey(selectedLeagueKey); err != nil {
+		if _, _, err := parseArchiveLeagueSelectionKey(selectedLeagueKey); err != nil {
 			return teamsview.PageData{}, errInvalidTeamsQuery
 		}
 	}
@@ -133,7 +133,7 @@ func (app *application) teamsPageData(r *http.Request) (teamsview.PageData, erro
 	return buildTeamsPageData(r.Context(), app.archive, app.queries, app.sleeperQueries, selectedLeagueKey)
 }
 
-func parseTeamsLeagueSelectionKey(value string) (archive.Provider, int64, error) {
+func parseArchiveLeagueSelectionKey(value string) (archive.Provider, int64, error) {
 	parts := strings.SplitN(strings.TrimSpace(value), ":", 2)
 	if len(parts) != 2 {
 		return "", 0, errors.New("invalid league selection key")
@@ -154,13 +154,13 @@ func parseTeamsLeagueSelectionKey(value string) (archive.Provider, int64, error)
 	return provider, id, nil
 }
 
-func teamsLeagueSelectionKey(league archive.LeagueSummary) string {
+func archiveLeagueSelectionKey(league archive.LeagueSummary) string {
 	return fmt.Sprintf("%s:%d", league.Provider, league.ID)
 }
 
 func findLeagueSummaryByKey(leagues []archive.LeagueSummary, selectionKey string) (archive.LeagueSummary, bool) {
 	for _, league := range leagues {
-		if teamsLeagueSelectionKey(league) == selectionKey {
+		if archiveLeagueSelectionKey(league) == selectionKey {
 			return league, true
 		}
 	}
@@ -212,7 +212,7 @@ func buildTeamsPageData(
 		}
 	}
 	page.SelectedLeague = selected
-	page.SelectedLeagueKey = teamsLeagueSelectionKey(selected)
+	page.SelectedLeagueKey = archiveLeagueSelectionKey(selected)
 
 	teams, sleeperMessage, err := loadTeamsForLeague(ctx, selected, espnLister, sleeperLister)
 	if sleeperMessage != "" {
