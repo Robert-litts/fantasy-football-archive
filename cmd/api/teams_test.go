@@ -240,7 +240,7 @@ type teamsArchiveStub struct {
 	err        error
 }
 
-func (s teamsArchiveStub) ListLeagueSummaries(context.Context) (archive.LeagueList, error) {
+func (s teamsArchiveStub) ListCanonicalLeagueSummaries(context.Context) (archive.LeagueList, error) {
 	return s.leagueList, s.err
 }
 

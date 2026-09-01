@@ -18,7 +18,7 @@ import (
 )
 
 type matchupsArchiveLister interface {
-	ListLeagueSummaries(context.Context) (archive.LeagueList, error)
+	ListCanonicalLeagueSummaries(context.Context) (archive.LeagueList, error)
 }
 
 type matchupsESPNLister interface {
@@ -35,6 +35,12 @@ type matchupsSleeperTeamLister interface {
 
 type matchupsSleeperBracketLister interface {
 	ListPlayoffBracketMatchupsByLeague(context.Context, int64) ([]sleeperdb.PlayoffBracketMatchup, error)
+}
+
+type sleeperChampionshipResolution struct {
+	FirstRosterID          int32
+	SecondRosterID         int32
+	OfficialWinnerRosterID int32
 }
 
 var errInvalidMatchupsQuery = errors.New("invalid query parameters")
@@ -205,7 +211,7 @@ func buildMatchupsPageData(
 		return page, sql.ErrConnDone
 	}
 
-	leagueList, err := archiveLister.ListLeagueSummaries(ctx)
+	leagueList, err := archiveLister.ListCanonicalLeagueSummaries(ctx)
 	if err != nil {
 		return page, err
 	}
@@ -290,14 +296,16 @@ func loadMatchupsForLeague(
 		}
 
 		var brackets []sleeperdb.PlayoffBracketMatchup
+		warning := ""
 		if sleeperBracketLister != nil {
 			brackets, err = sleeperBracketLister.ListPlayoffBracketMatchupsByLeague(ctx, league.ID)
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				brackets = nil
+				warning = "Sleeper playoff bracket data is temporarily unavailable; championship labels may use final standings"
 			}
 		}
 
-		return normalizeSleeperMatchups(matchups, teams, brackets), "", nil
+		return normalizeSleeperMatchups(matchups, teams, brackets), warning, nil
 	default:
 		return nil, "", fmt.Errorf("unsupported league provider %q", league.Provider)
 	}
@@ -305,14 +313,24 @@ func loadMatchupsForLeague(
 
 func normalizeESPNMatchups(rows []db.GetMatchupsByLeagueIdRow) []matchupsview.MatchupRow {
 	lastWeek := lastESPNWeek(rows)
+	championshipIndex := -1
+	for i, row := range rows {
+		if isESPNChampionshipMatchupRow(row) && (championshipIndex == -1 || row.Week > rows[championshipIndex].Week) {
+			championshipIndex = i
+		}
+	}
 	matchups := make([]matchupsview.MatchupRow, 0, len(rows))
 
-	for _, row := range rows {
+	for i, row := range rows {
 		homePresent := row.HomeTeamID.Valid
 		awayPresent := row.AwayTeamID.Valid
 		homeWinner := homePresent && awayPresent && row.HomeScore > row.AwayScore
 		awayWinner := homePresent && awayPresent && row.AwayScore > row.HomeScore
-		isChampionship := row.IsPlayoff && row.Week == lastWeek && row.MatchupType == "WINNERS_BRACKET"
+		isChampionship := i == championshipIndex
+		if isChampionship {
+			homeWinner = row.HomeFinalStanding == 1
+			awayWinner = row.AwayFinalStanding == 1
+		}
 
 		matchups = append(matchups, matchupsview.MatchupRow{
 			Week:           row.Week,
@@ -342,7 +360,7 @@ func normalizeSleeperMatchups(rows []sleeperdb.Matchup, teams []sleeperdb.Team, 
 		teamsByRosterID[team.RosterID] = team
 	}
 
-	championshipPairs := sleeperChampionshipRosterPairs(brackets)
+	championship := resolveSleeperChampionship(brackets, teams)
 	rowsByKey := make(map[string]sleeperdb.Matchup, len(rows))
 	for _, row := range rows {
 		rowsByKey[sleeperMatchupRosterKey(row.Week, row.MatchupID, row.RosterID)] = row
@@ -386,10 +404,6 @@ func normalizeSleeperMatchups(rows []sleeperdb.Matchup, teams []sleeperdb.Team, 
 			handled[sleeperMatchupRosterKey(opponent.Week, opponent.MatchupID, opponent.RosterID)] = true
 		}
 		handled[rowKey] = true
-		if !opponentPresent && home.MatchupID == 0 {
-			continue
-		}
-
 		homeTeam := teamsByRosterID[home.RosterID]
 		awayTeam := teamsByRosterID[away.RosterID]
 		homeScore, awayScore := sleeperScore(home), sleeperScore(away)
@@ -416,7 +430,7 @@ func normalizeSleeperMatchups(rows []sleeperdb.Matchup, teams []sleeperdb.Team, 
 	}
 
 	matchups = filterSleeperInactiveWeeks(matchups)
-	finalizeSleeperMatchupLabels(matchups, championshipPairs)
+	finalizeSleeperMatchupLabels(matchups, championship)
 
 	sort.Slice(matchups, func(i, j int) bool {
 		if matchups[i].Week != matchups[j].Week {
@@ -445,19 +459,29 @@ func filterSleeperInactiveWeeks(matchups []matchupsview.MatchupRow) []matchupsvi
 	return filtered
 }
 
-func finalizeSleeperMatchupLabels(matchups []matchupsview.MatchupRow, championshipPairs map[string]bool) {
+func finalizeSleeperMatchupLabels(matchups []matchupsview.MatchupRow, championship sleeperChampionshipResolution) {
 	lastWeek := lastMatchupRowWeek(matchups)
-	hasChampionshipPairs := len(championshipPairs) > 0
+	championshipIndex := -1
+	if championship.valid() {
+		for i, matchup := range matchups {
+			if !matchup.HomePresent || !matchup.AwayPresent || !matchup.IsPlayoff {
+				continue
+			}
+			if rosterPairKey(matchup.HomeRosterID, matchup.AwayRosterID) != rosterPairKey(championship.FirstRosterID, championship.SecondRosterID) {
+				continue
+			}
+			if championshipIndex == -1 || matchup.Week > matchups[championshipIndex].Week {
+				championshipIndex = i
+			}
+		}
+	}
 
 	for i := range matchups {
 		matchup := &matchups[i]
-		isChampionship := false
-		if matchup.HomePresent && matchup.AwayPresent {
-			if hasChampionshipPairs {
-				isChampionship = matchup.Week == lastWeek && championshipPairs[rosterPairKey(matchup.HomeRosterID, matchup.AwayRosterID)]
-			} else {
-				isChampionship = matchup.IsPlayoff && matchup.Week == lastWeek && matchup.MatchupType == "WINNERS_BRACKET"
-			}
+		isChampionship := i == championshipIndex
+		if isChampionship {
+			matchup.HomeWinner = matchup.HomeRosterID == championship.OfficialWinnerRosterID
+			matchup.AwayWinner = matchup.AwayRosterID == championship.OfficialWinnerRosterID
 		}
 
 		matchup.IsChampionship = isChampionship
@@ -465,29 +489,77 @@ func finalizeSleeperMatchupLabels(matchups []matchupsview.MatchupRow, championsh
 	}
 }
 
-func sleeperChampionshipRosterPairs(brackets []sleeperdb.PlayoffBracketMatchup) map[string]bool {
-	pairs := make(map[string]bool)
+func resolveSleeperChampionship(brackets []sleeperdb.PlayoffBracketMatchup, teams []sleeperdb.Team) sleeperChampionshipResolution {
+	var bracketResolution sleeperChampionshipResolution
+	foundPlacement := false
+	foundResolution := false
 	for _, bracket := range brackets {
 		if !isSleeperWinnersBracket(bracket.BracketType) || !bracket.Placement.Valid || bracket.Placement.Int32 != 1 {
 			continue
 		}
+		foundPlacement = true
 
-		first, second, ok := sleeperBracketRosterPair(bracket)
-		if ok {
-			pairs[rosterPairKey(first, second)] = true
+		resolution, ok := sleeperBracketChampionship(bracket)
+		if !ok {
+			continue
 		}
+		if foundResolution && resolution != bracketResolution {
+			return sleeperChampionshipResolution{}
+		}
+		bracketResolution = resolution
+		foundResolution = true
 	}
-	return pairs
+	if foundResolution {
+		return bracketResolution
+	}
+	if foundPlacement {
+		return sleeperChampionshipResolution{}
+	}
+
+	return sleeperChampionshipFromStandings(teams)
 }
 
-func sleeperBracketRosterPair(bracket sleeperdb.PlayoffBracketMatchup) (int32, int32, bool) {
+func sleeperBracketChampionship(bracket sleeperdb.PlayoffBracketMatchup) (sleeperChampionshipResolution, bool) {
+	if !bracket.WinnerRosterID.Valid {
+		return sleeperChampionshipResolution{}, false
+	}
+
+	resolution := sleeperChampionshipResolution{OfficialWinnerRosterID: bracket.WinnerRosterID.Int32}
 	if bracket.WinnerRosterID.Valid && bracket.LoserRosterID.Valid {
-		return bracket.WinnerRosterID.Int32, bracket.LoserRosterID.Int32, true
+		resolution.FirstRosterID = bracket.WinnerRosterID.Int32
+		resolution.SecondRosterID = bracket.LoserRosterID.Int32
+	} else if bracket.Slot1RosterID.Valid && bracket.Slot2RosterID.Valid {
+		resolution.FirstRosterID = bracket.Slot1RosterID.Int32
+		resolution.SecondRosterID = bracket.Slot2RosterID.Int32
 	}
-	if bracket.Slot1RosterID.Valid && bracket.Slot2RosterID.Valid {
-		return bracket.Slot1RosterID.Int32, bracket.Slot2RosterID.Int32, true
+	return resolution, resolution.valid()
+}
+
+func sleeperChampionshipFromStandings(teams []sleeperdb.Team) sleeperChampionshipResolution {
+	resolution := sleeperChampionshipResolution{}
+	championCount, runnerUpCount := 0, 0
+	for _, team := range teams {
+		switch team.FinalStanding {
+		case 1:
+			resolution.FirstRosterID = team.RosterID
+			resolution.OfficialWinnerRosterID = team.RosterID
+			championCount++
+		case 2:
+			resolution.SecondRosterID = team.RosterID
+			runnerUpCount++
+		}
 	}
-	return 0, 0, false
+	if championCount != 1 || runnerUpCount != 1 || !resolution.valid() {
+		return sleeperChampionshipResolution{}
+	}
+	return resolution
+}
+
+func (r sleeperChampionshipResolution) valid() bool {
+	if r.FirstRosterID < 1 || r.SecondRosterID < 1 || r.FirstRosterID == r.SecondRosterID {
+		return false
+	}
+	return r.OfficialWinnerRosterID == r.FirstRosterID || r.OfficialWinnerRosterID == r.SecondRosterID
 }
 
 func isSleeperWinnersBracket(bracketType string) bool {
@@ -582,6 +654,14 @@ func lastESPNWeek(rows []db.GetMatchupsByLeagueIdRow) int32 {
 		}
 	}
 	return lastWeek
+}
+
+func isESPNChampionshipMatchupRow(row db.GetMatchupsByLeagueIdRow) bool {
+	if !row.HomeTeamID.Valid || !row.AwayTeamID.Valid || !row.IsPlayoff || row.MatchupType != "WINNERS_BRACKET" {
+		return false
+	}
+	return row.HomeFinalStanding == 1 && row.AwayFinalStanding == 2 ||
+		row.HomeFinalStanding == 2 && row.AwayFinalStanding == 1
 }
 
 func matchupTypeLabel(isPlayoff, isChampionship bool, matchupType string, currentWeek, lastWeek int32, hasOpponent bool) string {

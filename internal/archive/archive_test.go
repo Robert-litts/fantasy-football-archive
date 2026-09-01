@@ -113,17 +113,34 @@ func TestListLeagueSummariesDerivesESPNChampions(t *testing.T) {
 		espnMatchupStub{matchups: map[int32][]db.GetMatchupsByLeagueIdRow{
 			99: []db.GetMatchupsByLeagueIdRow{
 				{
-					Week:           14,
-					HomeTeamID:     validID(1),
-					AwayTeamID:     validID(2),
-					HomeScore:      125.4,
-					AwayScore:      117.8,
-					IsPlayoff:      true,
-					MatchupType:    "WINNERS_BRACKET",
-					HomeTeamName:   "Alpha Squad",
-					HomeTeamOwners: "Alice",
-					AwayTeamName:   "Beta Crew",
-					AwayTeamOwners: "Bob",
+					Week:              14,
+					HomeTeamID:        validID(1),
+					AwayTeamID:        validID(2),
+					HomeScore:         117.8,
+					AwayScore:         117.8,
+					IsPlayoff:         true,
+					MatchupType:       "WINNERS_BRACKET",
+					HomeTeamName:      "Alpha Squad",
+					HomeTeamOwners:    "Alice",
+					HomeFinalStanding: 1,
+					AwayTeamName:      "Beta Crew",
+					AwayTeamOwners:    "Bob",
+					AwayFinalStanding: 2,
+				},
+				{
+					Week:              15,
+					HomeTeamID:        validID(3),
+					AwayTeamID:        validID(4),
+					HomeScore:         140,
+					AwayScore:         120,
+					IsPlayoff:         true,
+					MatchupType:       "WINNERS_BRACKET",
+					HomeTeamName:      "Third Place",
+					HomeTeamOwners:    "Carol",
+					HomeFinalStanding: 3,
+					AwayTeamName:      "Fourth Place",
+					AwayTeamOwners:    "Dave",
+					AwayFinalStanding: 4,
 				},
 			},
 		}},
@@ -237,17 +254,19 @@ func TestListSeasonResultsUsesCanonicalLeagueSummaries(t *testing.T) {
 		espnMatchupStub{matchups: map[int32][]db.GetMatchupsByLeagueIdRow{
 			11: {
 				{
-					Week:           15,
-					HomeTeamID:     validID(1),
-					AwayTeamID:     validID(2),
-					HomeScore:      120,
-					AwayScore:      100,
-					IsPlayoff:      true,
-					MatchupType:    "WINNERS_BRACKET",
-					HomeTeamName:   "ESPN Champ",
-					HomeTeamOwners: "Alice",
-					AwayTeamName:   "ESPN Runner",
-					AwayTeamOwners: "Bob",
+					Week:              15,
+					HomeTeamID:        validID(1),
+					AwayTeamID:        validID(2),
+					HomeScore:         120,
+					AwayScore:         100,
+					IsPlayoff:         true,
+					MatchupType:       "WINNERS_BRACKET",
+					HomeTeamName:      "ESPN Champ",
+					HomeTeamOwners:    "Alice",
+					HomeFinalStanding: 1,
+					AwayTeamName:      "ESPN Runner",
+					AwayTeamOwners:    "Bob",
+					AwayFinalStanding: 2,
 				},
 			},
 		}},
@@ -273,6 +292,108 @@ func TestListSeasonResultsUsesCanonicalLeagueSummaries(t *testing.T) {
 	}
 	if got.Seasons[1].Season != 2022 || got.Seasons[1].Champion != "Sleeper Champ" {
 		t.Fatalf("season[1] = %#v, want Sleeper 2022 result", got.Seasons[1])
+	}
+}
+
+func TestListCanonicalLeagueSummariesPrefersSleeperForOverlappingSeason(t *testing.T) {
+	svc := New(
+		espnStub{leagues: []db.League{
+			{ID: 11, LeagueId: 1001, Year: 2021},
+			{ID: 12, LeagueId: 1002, Year: 2022},
+		}},
+		nil,
+		sleeperStub{reports: []sleeperdb.ListLeagueReportsRow{
+			{LeagueID: 2001, CanonicalLeagueID: "main", Season: 2022, Name: "Canonical Sleeper"},
+		}},
+		nil,
+		nil,
+		"main",
+	)
+
+	got, err := svc.ListCanonicalLeagueSummaries(context.Background())
+	if err != nil {
+		t.Fatalf("ListCanonicalLeagueSummaries returned error: %v", err)
+	}
+	if len(got.Leagues) != 2 {
+		t.Fatalf("len(Leagues) = %d, want one league per season", len(got.Leagues))
+	}
+	if got.Leagues[0].Provider != ProviderESPN || got.Leagues[1].Provider != ProviderSleeper {
+		t.Fatalf("Leagues = %#v, want ESPN 2021 then Sleeper 2022", got.Leagues)
+	}
+
+	all, err := svc.ListLeagueSummaries(context.Background())
+	if err != nil {
+		t.Fatalf("ListLeagueSummaries returned error: %v", err)
+	}
+	if len(all.Leagues) != 3 {
+		t.Fatalf("len(all Leagues) = %d, want overlapping ESPN retained for diagnostics", len(all.Leagues))
+	}
+}
+
+func TestListCanonicalLeagueSummariesRejectsMultipleCandidatesForSeason(t *testing.T) {
+	svc := New(
+		espnStub{},
+		nil,
+		sleeperStub{reports: []sleeperdb.ListLeagueReportsRow{
+			{LeagueID: 2001, CanonicalLeagueID: "main", Season: 2022},
+			{LeagueID: 2002, CanonicalLeagueID: "main", Season: 2022},
+		}},
+		nil,
+		nil,
+		"main",
+	)
+
+	if _, err := svc.ListCanonicalLeagueSummaries(context.Background()); err == nil {
+		t.Fatal("ListCanonicalLeagueSummaries returned nil error, want duplicate-season ambiguity")
+	}
+}
+
+func TestListCanonicalLeagueSummariesRejectsMultipleUnconfiguredLineages(t *testing.T) {
+	svc := New(
+		espnStub{},
+		nil,
+		sleeperStub{reports: []sleeperdb.ListLeagueReportsRow{
+			{LeagueID: 2001, CanonicalLeagueID: "first", Season: 2022},
+			{LeagueID: 2002, CanonicalLeagueID: "second", Season: 2023},
+		}},
+		nil,
+		nil,
+		"",
+	)
+
+	if _, err := svc.ListCanonicalLeagueSummaries(context.Background()); err == nil {
+		t.Fatal("ListCanonicalLeagueSummaries returned nil error, want multiple-lineage ambiguity")
+	}
+}
+
+func TestSleeperFinalistsPreferOwnerIDAliasAndApplyAliasOnce(t *testing.T) {
+	svc := New(
+		espnStub{},
+		nil,
+		sleeperStub{reports: []sleeperdb.ListLeagueReportsRow{
+			{LeagueID: 2001, CanonicalLeagueID: "main", Season: 2022},
+		}},
+		sleeperTeamsStub{teams: []sleeperdb.Team{
+			{FinalStanding: 1, OwnerID: "owner-1", DisplayName: sql.NullString{String: "Display One", Valid: true}},
+			{FinalStanding: 2, OwnerID: "owner-2", Username: sql.NullString{String: "runner", Valid: true}},
+		}},
+		map[string]string{
+			"owner-1":       "Canonical One",
+			"Canonical One": "Should Not Be Applied",
+			"runner":        "Canonical Runner",
+		},
+		"main",
+	)
+
+	got, err := svc.ListCanonicalLeagueSummaries(context.Background())
+	if err != nil {
+		t.Fatalf("ListCanonicalLeagueSummaries returned error: %v", err)
+	}
+	if len(got.Leagues) != 1 {
+		t.Fatalf("len(Leagues) = %d, want 1", len(got.Leagues))
+	}
+	if got.Leagues[0].ChampionOwner != "Canonical One" || got.Leagues[0].RunnerUpOwner != "Canonical Runner" {
+		t.Fatalf("finalist owners = %#v, want owner-ID alias then username alias", got.Leagues[0])
 	}
 }
 
@@ -314,6 +435,15 @@ func (s sleeperStub) ListLeagueReports(context.Context) ([]sleeperdb.ListLeagueR
 
 func (s sleeperStub) ListTeamsByLeague(context.Context, int64) ([]sleeperdb.Team, error) {
 	return nil, nil
+}
+
+type sleeperTeamsStub struct {
+	teams []sleeperdb.Team
+	err   error
+}
+
+func (s sleeperTeamsStub) ListTeamsByLeague(context.Context, int64) ([]sleeperdb.Team, error) {
+	return s.teams, s.err
 }
 
 func validID(id int32) sql.NullInt32 {

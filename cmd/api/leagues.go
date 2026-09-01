@@ -119,7 +119,7 @@ func (app *application) leagueArchivePage(r *http.Request) (archive.LeagueList, 
 		return archive.LeagueList{}, sql.ErrConnDone
 	}
 
-	return app.archive.ListLeagueSummaries(r.Context())
+	return app.archive.ListCanonicalLeagueSummaries(r.Context())
 }
 
 func (app *application) appLeaguesPageHandler(w http.ResponseWriter, r *http.Request) {

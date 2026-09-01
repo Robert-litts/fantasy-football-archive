@@ -138,7 +138,37 @@ func (s *Service) listLeagueSummaries(ctx context.Context, canonicalOnly bool) (
 	if err != nil {
 		return result, err
 	}
+
+	var sleeperLeagues []sleeperdb.ListLeagueReportsRow
+	if s.sleeper == nil {
+		result.SleeperMessage = "Sleeper archive database is not configured"
+	} else {
+		sleeperLeagues, err = s.sleeper.ListLeagueReports(ctx)
+		if err != nil {
+			result.SleeperMessage = "Sleeper archive database is temporarily unavailable"
+			sleeperLeagues = nil
+		} else {
+			result.SleeperAvailable = true
+			if canonicalOnly {
+				sleeperLeagues, err = s.canonicalSleeperLeagues(sleeperLeagues)
+				if err != nil {
+					return result, err
+				}
+			}
+		}
+	}
+
+	sleeperSeasons := make(map[int32]bool, len(sleeperLeagues))
+	if canonicalOnly {
+		for _, league := range sleeperLeagues {
+			sleeperSeasons[league.Season] = true
+		}
+	}
+
 	for _, league := range espnLeagues {
+		if sleeperSeasons[league.Year] {
+			continue
+		}
 		summary := LeagueSummary{
 			Provider:   ProviderESPN,
 			ID:         int64(league.ID),
@@ -162,24 +192,7 @@ func (s *Service) listLeagueSummaries(ctx context.Context, canonicalOnly bool) (
 		result.Leagues = append(result.Leagues, summary)
 	}
 
-	if s.sleeper == nil {
-		result.SleeperMessage = "Sleeper archive database is not configured"
-		sortLeagueSummaries(result.Leagues)
-		return result, nil
-	}
-
-	sleeperLeagues, err := s.sleeper.ListLeagueReports(ctx)
-	if err != nil {
-		result.SleeperMessage = "Sleeper archive database is temporarily unavailable"
-		sortLeagueSummaries(result.Leagues)
-		return result, nil
-	}
-
-	result.SleeperAvailable = true
 	for _, league := range sleeperLeagues {
-		if canonicalOnly && !s.includesMainSleeperLeague(league.CanonicalLeagueID) {
-			continue
-		}
 		championOwner, runnerUpOwner := "", ""
 		if s.sleeperTeams != nil {
 			championOwner, runnerUpOwner = s.sleeperFinalists(ctx, league.LeagueID)
@@ -202,12 +215,40 @@ func (s *Service) listLeagueSummaries(ctx context.Context, canonicalOnly bool) (
 	return result, nil
 }
 
-func (s *Service) includesMainSleeperLeague(canonicalLeagueID string) bool {
-	canonicalLeagueID = strings.TrimSpace(canonicalLeagueID)
-	if s.mainSleeperLeagueID == "" {
-		return canonicalLeagueID != ""
+func (s *Service) canonicalSleeperLeagues(leagues []sleeperdb.ListLeagueReportsRow) ([]sleeperdb.ListLeagueReportsRow, error) {
+	canonicalLeagueID := s.mainSleeperLeagueID
+	if canonicalLeagueID == "" {
+		canonicalIDs := make(map[string]bool)
+		for _, league := range leagues {
+			if id := strings.TrimSpace(league.CanonicalLeagueID); id != "" {
+				canonicalIDs[id] = true
+			}
+		}
+		if len(canonicalIDs) > 1 {
+			return nil, fmt.Errorf("multiple canonical Sleeper lineages found; set SLEEPER_MAIN_LEAGUE_ID")
+		}
+		for id := range canonicalIDs {
+			canonicalLeagueID = id
+		}
 	}
-	return canonicalLeagueID == s.mainSleeperLeagueID
+
+	if canonicalLeagueID == "" {
+		return nil, nil
+	}
+
+	selected := make([]sleeperdb.ListLeagueReportsRow, 0)
+	seasonSeen := make(map[int32]bool)
+	for _, league := range leagues {
+		if strings.TrimSpace(league.CanonicalLeagueID) != canonicalLeagueID {
+			continue
+		}
+		if seasonSeen[league.Season] {
+			return nil, fmt.Errorf("multiple canonical Sleeper leagues found for season %d", league.Season)
+		}
+		seasonSeen[league.Season] = true
+		selected = append(selected, league)
+	}
+	return selected, nil
 }
 
 func (s *Service) espnFinalists(ctx context.Context, leagueID int32) (champion, championOwner, runnerUp, runnerUpOwner string, ok bool, err error) {
@@ -221,12 +262,20 @@ func (s *Service) espnFinalists(ctx context.Context, leagueID int32) (champion, 
 		return "", "", "", "", false, nil
 	}
 
-	winnerOwner, winnerTeam, loserTeam, _, _ := championshipWinner(*championship)
-	if winnerOwner == "" {
-		return "", "", "", "", false, nil
+	if championship.HomeFinalStanding == 1 {
+		return championship.HomeTeamName,
+			s.normalizeOwner(championship.HomeTeamOwners),
+			championship.AwayTeamName,
+			s.normalizeOwner(championship.AwayTeamOwners),
+			true,
+			nil
 	}
-
-	return winnerTeam, s.normalizeOwner(winnerOwner), loserTeam, s.normalizeOwner(championshipLoserOwner(*championship)), true, nil
+	return championship.AwayTeamName,
+		s.normalizeOwner(championship.AwayTeamOwners),
+		championship.HomeTeamName,
+		s.normalizeOwner(championship.HomeTeamOwners),
+		true,
+		nil
 }
 
 func (s *Service) sleeperFinalists(ctx context.Context, leagueID int64) (championOwner, runnerUpOwner string) {
@@ -237,9 +286,9 @@ func (s *Service) sleeperFinalists(ctx context.Context, leagueID int64) (champio
 	for _, team := range teams {
 		switch team.FinalStanding {
 		case 1:
-			championOwner = sleeperTeamOwnerLabel(team)
+			championOwner = s.sleeperTeamOwnerLabel(team)
 		case 2:
-			runnerUpOwner = sleeperTeamOwnerLabel(team)
+			runnerUpOwner = s.sleeperTeamOwnerLabel(team)
 		}
 	}
 	return championOwner, runnerUpOwner
@@ -281,10 +330,7 @@ func findChampionshipMatch(matchups []db.GetMatchupsByLeagueIdRow) *db.GetMatchu
 	var championship *db.GetMatchupsByLeagueIdRow
 	for i := range matchups {
 		matchup := &matchups[i]
-		if !matchup.HomeTeamID.Valid || !matchup.AwayTeamID.Valid {
-			continue
-		}
-		if !matchup.IsPlayoff || matchup.MatchupType != "WINNERS_BRACKET" {
+		if !isESPNChampionshipMatch(*matchup) {
 			continue
 		}
 		if championship == nil || matchup.Week > championship.Week {
@@ -294,24 +340,12 @@ func findChampionshipMatch(matchups []db.GetMatchupsByLeagueIdRow) *db.GetMatchu
 	return championship
 }
 
-func championshipWinner(matchup db.GetMatchupsByLeagueIdRow) (winnerOwner, winnerTeam, loserTeam string, winnerScore, loserScore float64) {
-	if matchup.HomeScore > matchup.AwayScore {
-		return matchup.HomeTeamOwners, matchup.HomeTeamName, matchup.AwayTeamName, matchup.HomeScore, matchup.AwayScore
+func isESPNChampionshipMatch(matchup db.GetMatchupsByLeagueIdRow) bool {
+	if !matchup.HomeTeamID.Valid || !matchup.AwayTeamID.Valid || !matchup.IsPlayoff || matchup.MatchupType != "WINNERS_BRACKET" {
+		return false
 	}
-	if matchup.AwayScore > matchup.HomeScore {
-		return matchup.AwayTeamOwners, matchup.AwayTeamName, matchup.HomeTeamName, matchup.AwayScore, matchup.HomeScore
-	}
-	return "", "", "", 0, 0
-}
-
-func championshipLoserOwner(matchup db.GetMatchupsByLeagueIdRow) string {
-	if matchup.HomeScore > matchup.AwayScore {
-		return matchup.AwayTeamOwners
-	}
-	if matchup.AwayScore > matchup.HomeScore {
-		return matchup.HomeTeamOwners
-	}
-	return ""
+	return matchup.HomeFinalStanding == 1 && matchup.AwayFinalStanding == 2 ||
+		matchup.HomeFinalStanding == 2 && matchup.AwayFinalStanding == 1
 }
 
 func (s *Service) normalizeOwner(owner string) string {
@@ -325,12 +359,18 @@ func (s *Service) normalizeOwner(owner string) string {
 	return normalized
 }
 
-func sleeperTeamOwnerLabel(team sleeperdb.Team) string {
+func (s *Service) sleeperTeamOwnerLabel(team sleeperdb.Team) string {
+	if ownerID := strings.TrimSpace(team.OwnerID); ownerID != "" {
+		if canonical, ok := s.ownerAliases[ownerID]; ok {
+			return strings.Join(strings.Fields(strings.TrimSpace(canonical)), " ")
+		}
+	}
+
 	if name := strings.TrimSpace(team.DisplayName.String); name != "" {
-		return name
+		return s.normalizeOwner(name)
 	}
 	if name := strings.TrimSpace(team.Username.String); name != "" {
-		return name
+		return s.normalizeOwner(name)
 	}
-	return strings.TrimSpace(team.OwnerID)
+	return s.normalizeOwner(team.OwnerID)
 }

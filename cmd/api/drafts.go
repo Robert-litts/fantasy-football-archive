@@ -20,7 +20,7 @@ import (
 )
 
 type draftsArchiveLister interface {
-	ListLeagueSummaries(context.Context) (archive.LeagueList, error)
+	ListCanonicalLeagueSummaries(context.Context) (archive.LeagueList, error)
 }
 
 type draftsESPNLister interface {
@@ -284,7 +284,7 @@ func buildDraftsPageData(
 		return page, sql.ErrConnDone
 	}
 
-	leagueList, err := archiveLister.ListLeagueSummaries(ctx)
+	leagueList, err := archiveLister.ListCanonicalLeagueSummaries(ctx)
 	if err != nil {
 		return page, err
 	}

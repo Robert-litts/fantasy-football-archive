@@ -134,6 +134,33 @@ func TestBuildMatchupsPageDataHandlesSleeperUnavailableGracefully(t *testing.T) 
 	}
 }
 
+func TestNormalizeESPNMatchupsUsesExactFinalStandingsAndOfficialWinner(t *testing.T) {
+	got := normalizeESPNMatchups([]db.GetMatchupsByLeagueIdRow{
+		{
+			Week: 16, HomeTeamID: sqlNullInt32(1), AwayTeamID: sqlNullInt32(2),
+			HomeScore: 110, AwayScore: 110, IsPlayoff: true, MatchupType: "WINNERS_BRACKET",
+			HomeTeamName: "Official Champion", HomeFinalStanding: 1,
+			AwayTeamName: "Runner Up", AwayFinalStanding: 2,
+		},
+		{
+			Week: 17, HomeTeamID: sqlNullInt32(3), AwayTeamID: sqlNullInt32(4),
+			HomeScore: 130, AwayScore: 120, IsPlayoff: true, MatchupType: "WINNERS_BRACKET",
+			HomeTeamName: "Placement Winner", HomeFinalStanding: 3,
+			AwayTeamName: "Placement Loser", AwayFinalStanding: 4,
+		},
+	})
+
+	if len(got) != 2 {
+		t.Fatalf("len(got) = %d, want 2", len(got))
+	}
+	if !got[0].IsChampionship || !got[0].HomeWinner || got[0].AwayWinner || got[0].TypeLabel != "Championship" {
+		t.Fatalf("finalists row = %#v, want tied official standing-1 champion", got[0])
+	}
+	if got[1].IsChampionship {
+		t.Fatalf("later placement row = %#v, should not be championship", got[1])
+	}
+}
+
 func TestNormalizeSleeperMatchupsPairsRosterRows(t *testing.T) {
 	got := normalizeSleeperMatchups(
 		[]sleeperdb.Matchup{
@@ -170,21 +197,28 @@ func TestNormalizeSleeperMatchupsDropsInactiveAllByeWeek(t *testing.T) {
 		[]sleeperdb.Matchup{
 			{Week: 17, MatchupID: 1, RosterID: 1, OpponentRosterID: sqlNullInt32(2), Points: "111.1", IsPlayoff: true, MatchupType: "WINNERS_BRACKET"},
 			{Week: 17, MatchupID: 1, RosterID: 2, OpponentRosterID: sqlNullInt32(1), Points: "101.1", IsPlayoff: true, MatchupType: "WINNERS_BRACKET"},
+			{Week: 17, MatchupID: 0, RosterID: 3, Points: "0", IsPlayoff: true, MatchupType: "WINNERS_BRACKET"},
 			{Week: 18, MatchupID: 0, RosterID: 1, Points: "0", IsPlayoff: true, MatchupType: "WINNERS_BRACKET"},
 			{Week: 18, MatchupID: 0, RosterID: 2, Points: "0", IsPlayoff: true, MatchupType: "WINNERS_BRACKET"},
 		},
-		nil,
+		[]sleeperdb.Team{
+			{RosterID: 1, TeamName: "Champion", FinalStanding: 1},
+			{RosterID: 2, TeamName: "Runner Up", FinalStanding: 2},
+			{RosterID: 3, TeamName: "Bye Team", FinalStanding: 3},
+		},
 		nil,
 	)
 
-	if len(got) != 1 {
-		t.Fatalf("len(got) = %d, want only the played week", len(got))
+	if len(got) != 2 {
+		t.Fatalf("len(got) = %d, want played matchup and same-week bye", len(got))
 	}
-	if got[0].Week != 17 {
-		t.Fatalf("Week = %d, want week 17", got[0].Week)
+	for _, matchup := range got {
+		if matchup.Week != 17 {
+			t.Fatalf("matchup = %#v, want trailing all-unpaired week 18 dropped", matchup)
+		}
 	}
-	if got[0].TypeLabel != "Championship" {
-		t.Fatalf("TypeLabel = %q, want Championship after dropping inactive week 18", got[0].TypeLabel)
+	if got[0].TypeLabel != "BYE Week" && got[1].TypeLabel != "BYE Week" {
+		t.Fatalf("matchups = %#v, want winners-bracket bye retained", got)
 	}
 }
 
@@ -197,6 +231,8 @@ func TestNormalizeSleeperMatchupsUsesBracketForChampionshipMatchOnly(t *testing.
 			{Week: 17, MatchupID: 1, RosterID: 2, OpponentRosterID: sqlNullInt32(1), Points: "120", IsPlayoff: true, MatchupType: "WINNERS_BRACKET"},
 			{Week: 17, MatchupID: 2, RosterID: 3, OpponentRosterID: sqlNullInt32(4), Points: "110", IsPlayoff: true, MatchupType: "WINNERS_BRACKET"},
 			{Week: 17, MatchupID: 2, RosterID: 4, OpponentRosterID: sqlNullInt32(3), Points: "109", IsPlayoff: true, MatchupType: "WINNERS_BRACKET"},
+			{Week: 18, MatchupID: 1, RosterID: 3, OpponentRosterID: sqlNullInt32(4), Points: "115", IsPlayoff: true, MatchupType: "LOSERS_BRACKET"},
+			{Week: 18, MatchupID: 1, RosterID: 4, OpponentRosterID: sqlNullInt32(3), Points: "116", IsPlayoff: true, MatchupType: "LOSERS_BRACKET"},
 		},
 		[]sleeperdb.Team{
 			{RosterID: 1, TeamName: "Finalist A"},
@@ -214,31 +250,96 @@ func TestNormalizeSleeperMatchupsUsesBracketForChampionshipMatchOnly(t *testing.
 		},
 	)
 
-	if len(got) != 3 {
-		t.Fatalf("len(got) = %d, want 3 matchups including regular-season rematch", len(got))
+	if len(got) != 4 {
+		t.Fatalf("len(got) = %d, want 4 matchups including later consolation", len(got))
 	}
 
 	championshipCount := 0
-	placementCount := 0
 	for _, matchup := range got {
 		if matchup.Week == 5 && matchup.TypeLabel == "Championship" {
 			t.Fatalf("regular-season rematch = %#v, should not be labeled Championship", matchup)
 		}
 		if matchup.TypeLabel == "Championship" {
 			championshipCount++
-			if matchup.HomeTeamName != "Finalist A" {
-				t.Fatalf("championship matchup = %#v, want Finalist A vs Finalist B", matchup)
+			if matchup.Week != 17 || matchup.HomeTeamName != "Finalist A" {
+				t.Fatalf("championship matchup = %#v, want week 17 Finalist A vs Finalist B", matchup)
 			}
 		}
-		if matchup.Week == 17 && matchup.TypeLabel == "Placement Game" {
-			placementCount++
+		if matchup.Week == 18 && matchup.IsChampionship {
+			t.Fatalf("later consolation matchup = %#v, should not be championship", matchup)
 		}
 	}
 	if championshipCount != 1 {
 		t.Fatalf("championshipCount = %d, want exactly 1", championshipCount)
 	}
-	if placementCount != 1 {
-		t.Fatalf("placementCount = %d, want exactly 1 final-week non-title placement game", placementCount)
+}
+
+func TestNormalizeSleeperMatchupsFallsBackToUniqueFinalStandings(t *testing.T) {
+	got := normalizeSleeperMatchups(
+		[]sleeperdb.Matchup{
+			{Week: 16, MatchupID: 1, RosterID: 5, OpponentRosterID: sqlNullInt32(9), Points: "101", IsPlayoff: true, MatchupType: "WINNERS_BRACKET"},
+			{Week: 16, MatchupID: 1, RosterID: 9, OpponentRosterID: sqlNullInt32(5), Points: "101", IsPlayoff: true, MatchupType: "WINNERS_BRACKET"},
+		},
+		[]sleeperdb.Team{
+			{RosterID: 5, TeamName: "Runner", FinalStanding: 2},
+			{RosterID: 9, TeamName: "Champion", FinalStanding: 1},
+		},
+		nil,
+	)
+
+	if len(got) != 1 || !got[0].IsChampionship || !got[0].AwayWinner || got[0].HomeWinner {
+		t.Fatalf("got = %#v, want standings-resolved tied championship with roster 9 winner", got)
+	}
+}
+
+func TestNormalizeSleeperMatchupsDoesNotGuessWithoutReliablePair(t *testing.T) {
+	got := normalizeSleeperMatchups(
+		[]sleeperdb.Matchup{
+			{Week: 17, MatchupID: 1, RosterID: 1, OpponentRosterID: sqlNullInt32(2), Points: "120", IsPlayoff: true, MatchupType: "WINNERS_BRACKET"},
+			{Week: 17, MatchupID: 1, RosterID: 2, OpponentRosterID: sqlNullInt32(1), Points: "110", IsPlayoff: true, MatchupType: "WINNERS_BRACKET"},
+		},
+		[]sleeperdb.Team{
+			{RosterID: 1, FinalStanding: 1},
+			{RosterID: 2, FinalStanding: 1},
+		},
+		nil,
+	)
+
+	if len(got) != 1 {
+		t.Fatalf("len(got) = %d, want matchup retained", len(got))
+	}
+	if got[0].IsChampionship || got[0].TypeLabel == "Championship" {
+		t.Fatalf("got = %#v, should not guess a championship from the final week", got[0])
+	}
+}
+
+func TestLoadMatchupsForLeagueWarnsAndUsesStandingsWhenBracketQueryFails(t *testing.T) {
+	rows, warning, err := loadMatchupsForLeague(
+		context.Background(),
+		archive.LeagueSummary{Provider: archive.ProviderSleeper, ID: 2001},
+		nil,
+		matchupsSleeperStub{rows: map[int64][]sleeperdb.Matchup{
+			2001: {
+				{Week: 17, MatchupID: 1, RosterID: 1, OpponentRosterID: sqlNullInt32(2), Points: "100", IsPlayoff: true},
+				{Week: 17, MatchupID: 1, RosterID: 2, OpponentRosterID: sqlNullInt32(1), Points: "100", IsPlayoff: true},
+			},
+		}},
+		matchupsSleeperTeamsStub{rows: map[int64][]sleeperdb.Team{
+			2001: {
+				{RosterID: 1, FinalStanding: 1},
+				{RosterID: 2, FinalStanding: 2},
+			},
+		}},
+		matchupsSleeperBracketsStub{err: errors.New("bracket down")},
+	)
+	if err != nil {
+		t.Fatalf("loadMatchupsForLeague returned error: %v", err)
+	}
+	if warning == "" {
+		t.Fatal("warning is empty, want safe bracket warning")
+	}
+	if len(rows) != 1 || !rows[0].IsChampionship || !rows[0].HomeWinner {
+		t.Fatalf("rows = %#v, want matchup data retained with standings championship", rows)
 	}
 }
 
@@ -247,7 +348,7 @@ type matchupsArchiveStub struct {
 	err        error
 }
 
-func (s matchupsArchiveStub) ListLeagueSummaries(context.Context) (archive.LeagueList, error) {
+func (s matchupsArchiveStub) ListCanonicalLeagueSummaries(context.Context) (archive.LeagueList, error) {
 	return s.leagueList, s.err
 }
 

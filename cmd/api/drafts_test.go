@@ -211,7 +211,7 @@ type draftsArchiveStub struct {
 	err        error
 }
 
-func (s draftsArchiveStub) ListLeagueSummaries(context.Context) (archive.LeagueList, error) {
+func (s draftsArchiveStub) ListCanonicalLeagueSummaries(context.Context) (archive.LeagueList, error) {
 	return s.leagueList, s.err
 }
 
