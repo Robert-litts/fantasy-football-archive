@@ -48,6 +48,8 @@ jobs:
         with:
           context: .
           push: true
+          build-args: |
+            VERSION=${{ github.ref_name }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -65,7 +67,22 @@ jobs:
           key: ${{ secrets.KEY }}
           port: ${{ secrets.PORT }}
           script: |
+            set -euo pipefail
             cd ~/docker
+            OLD_IMAGE=$(docker compose ps -q api || true)
             docker compose pull
             docker compose up -d --remove-orphans
-            docker image prune -af
+            for attempt in $(seq 1 30); do
+              if curl -fsS http://127.0.0.1:4000/api/v1/healthcheck >/dev/null; then
+                echo "healthcheck OK"
+                break
+              fi
+              sleep 2
+            done
+            if ! curl -fsS http://127.0.0.1:4000/api/v1/healthcheck >/dev/null; then
+              echo "healthcheck failed after deploy" >&2
+              exit 1
+            fi
+            if [ -n "$OLD_IMAGE" ]; then
+              docker image prune -f || true
+            fi

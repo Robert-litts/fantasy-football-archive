@@ -35,15 +35,14 @@ assets/build: css/build
 # ==================================================================================== #
 # CSS/TAILWIND & STATIC ASSETS
 # ==================================================================================== #
-## css/install: install Tailwind CSS
+## assets/install: install Tailwind CSS and htmx
 .PHONY: assets/install
 assets/install:
 	@echo 'Installing Tailwind CSS...'
-	npm install -D tailwindcss
-	npx tailwindcss init
+	npm ci
 	@echo 'Downloading htmx...'
 	@mkdir -p ./internal/static/js
-	curl -o ./internal/static/js/htmx.min.js https://unpkg.com/htmx.org@1.9.12/dist/htmx.min.js
+	curl -fsSLo ./internal/static/js/htmx.min.js https://unpkg.com/htmx.org@1.9.12/dist/htmx.min.js
 
 
 ## css/build: build CSS from Tailwind
@@ -87,7 +86,7 @@ sqlc/generate:
 
 ## audit: run quality control checks
 .PHONY: audit
-audit:
+audit: templ/generate
 	@echo 'Checking module dependencies'
 	go mod tidy -diff
 	go mod verify
@@ -97,6 +96,18 @@ audit:
 	@echo 'Running tests...'
 	go test -race -vet=off ./...
 
+## ci: full CI checks (templ generate, sqlc drift, vet, staticcheck, race tests)
+.PHONY: ci
+ci: templ/generate
+	@echo 'Vetting code...'
+	go vet ./...
+	staticcheck ./...
+	@echo 'Running tests...'
+	go test -race -vet=off -count=1 ./...
+	@echo 'Building native binary...'
+	@VERSION=$${VERSION:-$(shell git describe --tags --always --dirty 2>/dev/null || echo development)}
+	go build -trimpath -ldflags="-s -w -X main.version=$$VERSION" -o=./bin/api ./cmd/api
+
 # ==================================================================================== #
 # BUILD
 # ==================================================================================== #
@@ -105,7 +116,8 @@ audit:
 .PHONY: build/api
 build/api: templ/generate assets/build
 	@echo 'Building cmd/api...'
-	go build -ldflags='-s' -o=./bin/api ./cmd/api
+	@VERSION=$${VERSION:-$(shell git describe --tags --always --dirty 2>/dev/null || echo development)}
+	go build -trimpath -ldflags="-s -w -X main.version=$$VERSION" -o=./bin/api ./cmd/api
 
 .PHONY: templ/generate
 templ/generate:
