@@ -7,17 +7,6 @@ import (
 	"github.com/Robert-litts/fantasy-football-archive/internal/sleeperdb"
 )
 
-func (app *application) sleeperReportHandler(w http.ResponseWriter, r *http.Request) {
-	reports, ok := app.sleeperReports(w, r)
-	if !ok {
-		return
-	}
-
-	if err := app.writeJSON(w, http.StatusOK, envelope{"reports": reports}, nil); err != nil {
-		app.serverErrorResponse(w, r, err)
-	}
-}
-
 func (app *application) sleeperReportPageHandler(w http.ResponseWriter, r *http.Request) {
 	reports, ok := app.sleeperReports(w, r)
 	if !ok {
@@ -32,7 +21,7 @@ func (app *application) sleeperReportPageHandler(w http.ResponseWriter, r *http.
 
 func (app *application) sleeperReports(w http.ResponseWriter, r *http.Request) ([]sleeperdb.ListLeagueReportsRow, bool) {
 	if app.sleeperQueries == nil {
-		app.errorResponse(w, r, http.StatusServiceUnavailable, "sleeper database is not configured")
+		app.errorResponse(w, r, http.StatusServiceUnavailable, "sleeper database is not configured; set SLEEPER_DATABASE_URL to enable diagnostics")
 		return nil, false
 	}
 

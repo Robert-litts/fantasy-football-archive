@@ -36,7 +36,13 @@ templ Home(year int, startTime time.Time, seasonResults archive.SeasonResultList
 							</div>
 							<div class="rounded-2xl border border-red-300/30 bg-red-400/10 px-4 py-3">
 								<p class="text-xs font-bold uppercase tracking-[0.22em] text-red-100/70">Draft time</p>
-								<p class="mt-1 text-sm font-bold text-red-100">{ startTime.Format("Mon, Jan 2 at 3:04PM MST") }</p>
+								<p class="mt-1 text-sm font-bold text-red-100">
+									if startTime.IsZero() {
+										Draft time unavailable
+									} else {
+										{ startTime.Format("Mon, Jan 2 at 3:04PM MST") }
+									}
+								</p>
 							</div>
 						</div>
 					</div>
