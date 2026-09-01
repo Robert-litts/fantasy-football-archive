@@ -88,25 +88,25 @@ sqlc/generate:
 .PHONY: audit
 audit: templ/generate
 	@echo 'Checking module dependencies'
-	go mod tidy -diff
-	go mod verify
+	GOTOOLCHAIN=go1.23.3 go mod tidy -diff
+	GOTOOLCHAIN=go1.23.3 go mod verify
 	@echo 'Vetting code...'
-	go vet ./...
+	GOTOOLCHAIN=go1.23.3 go vet ./...
 	staticcheck ./...
 	@echo 'Running tests...'
-	go test -race -vet=off ./...
+	GOTOOLCHAIN=go1.23.3 go test -race -vet=off ./...
 
 ## ci: full CI checks (templ generate, sqlc drift, vet, staticcheck, race tests)
 .PHONY: ci
 ci: templ/generate
 	@echo 'Vetting code...'
-	go vet ./...
+	GOTOOLCHAIN=go1.23.3 go vet ./...
 	staticcheck ./...
 	@echo 'Running tests...'
-	go test -race -vet=off -count=1 ./...
+	GOTOOLCHAIN=go1.23.3 go test -race -vet=off -count=1 ./...
 	@echo 'Building native binary...'
 	@VERSION=$${VERSION:-$(shell git describe --tags --always --dirty 2>/dev/null || echo development)}
-	go build -trimpath -ldflags="-s -w -X main.version=$$VERSION" -o=./bin/api ./cmd/api
+	GOTOOLCHAIN=go1.23.3 go build -trimpath -ldflags="-s -w -X main.version=$$VERSION" -o=./bin/api ./cmd/api
 
 # ==================================================================================== #
 # BUILD
@@ -117,7 +117,7 @@ ci: templ/generate
 build/api: templ/generate assets/build
 	@echo 'Building cmd/api...'
 	@VERSION=$${VERSION:-$(shell git describe --tags --always --dirty 2>/dev/null || echo development)}
-	go build -trimpath -ldflags="-s -w -X main.version=$$VERSION" -o=./bin/api ./cmd/api
+	GOTOOLCHAIN=go1.23.3 go build -trimpath -ldflags="-s -w -X main.version=$$VERSION" -o=./bin/api ./cmd/api
 
 .PHONY: templ/generate
 templ/generate:
