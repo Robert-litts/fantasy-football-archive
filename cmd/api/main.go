@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"sync"
 	"time"
@@ -44,13 +45,25 @@ type databaseConfig struct {
 	maxIdleTime  time.Duration
 }
 
+type sleeperQueryStore interface {
+	ListLeagueReports(context.Context) ([]sleeperdb.ListLeagueReportsRow, error)
+	ListTeamsByLeague(context.Context, int64) ([]sleeperdb.Team, error)
+	ListDraftPicksByLeague(context.Context, int64) ([]sleeperdb.ListDraftPicksByLeagueRow, error)
+	ListPlayerPositionsByESPNIDs(context.Context, []string) ([]sleeperdb.PlayerPositionByESPNID, error)
+	ListMatchupsByLeague(context.Context, int64) ([]sleeperdb.Matchup, error)
+	ListPlayoffBracketMatchupsByLeague(context.Context, int64) ([]sleeperdb.PlayoffBracketMatchup, error)
+}
+
+var _ sleeperQueryStore = (*sleeperdb.Queries)(nil)
+
 type config struct {
-	port         int
-	env          string
-	ownerAliases map[string]string
-	db           databaseConfig
-	sleeperDB    databaseConfig
-	redis        struct {
+	port                int
+	env                 string
+	ownerAliases        map[string]string
+	ownerIdentitiesFile string
+	db                  databaseConfig
+	sleeperDB           databaseConfig
+	redis               struct {
 		addr     string
 		password string
 		db       int
@@ -68,18 +81,20 @@ type application struct {
 	config         config
 	logger         *slog.Logger
 	queries        *db.Queries
-	sleeperQueries *sleeperdb.Queries
+	sleeperQueries sleeperQueryStore
 	archive        *archive.Service
 	sessionStore   sessions.Store
 	mailer         *mailer.Mailer
 	wg             sync.WaitGroup
 	authManager    *AuthManager
 	redisClient    *redis.Client
+	draftTime      DraftTimeLookup
+	seasonResults  func(*http.Request) (archive.SeasonResultList, error)
 }
 
 func main() {
 	// Load environment variables
-	sleeperLeagueID, sleeperMainLeagueID, baseCallbackURL, port, env, ownerAliases, dsn, sleeperDSN, dbMaxOpenConns, dbMaxIdleConns, dbMaxIdleTime, sessionKey, sendGridKey, redisAddr, redisPassword, redisDB := loadEnvironment()
+	sleeperLeagueID, sleeperMainLeagueID, baseCallbackURL, port, env, ownerAliases, ownerIdentitiesFile, dsn, sleeperDSN, dbMaxOpenConns, dbMaxIdleConns, dbMaxIdleTime, sessionKey, sendGridKey, redisAddr, redisPassword, redisDB := loadEnvironment()
 
 	var cfg config
 
@@ -100,6 +115,7 @@ func main() {
 	cfg.sleeperLeagueID = sleeperLeagueID
 	cfg.sleeperMainLeagueID = sleeperMainLeagueID
 	cfg.ownerAliases = ownerAliases
+	cfg.ownerIdentitiesFile = ownerIdentitiesFile
 	cfg.redis.addr = redisAddr
 	cfg.redis.password = redisPassword
 	cfg.redis.db = redisDB
@@ -154,7 +170,7 @@ func main() {
 	logger.Info("database connection pool established")
 
 	queries := db.New(dbConn)
-	var sleeperQueries *sleeperdb.Queries
+	var sleeperQueries sleeperQueryStore
 	if cfg.sleeperDB.dsn != "" {
 		sleeperDBConn, err := openDB(cfg.sleeperDB)
 		if err != nil {
@@ -169,6 +185,21 @@ func main() {
 		logger.Warn("sleeper database URL not configured; sleeper archive views will be unavailable")
 	}
 
+	if err := ensureOwnerIdentitiesFile(context.Background(), cfg.ownerIdentitiesFile, queries, sleeperQueries, logger); err != nil {
+		logger.Error("failed to ensure owner identities file", "error", err, "path", cfg.ownerIdentitiesFile)
+		os.Exit(1)
+	}
+	identityAliases, err := parseOwnerIdentitiesFile(cfg.ownerIdentitiesFile)
+	if err != nil {
+		logger.Error("failed to load owner identities file", "error", err, "path", cfg.ownerIdentitiesFile)
+		os.Exit(1)
+	}
+	cfg.ownerAliases, err = mergeOwnerAliases(identityAliases, cfg.ownerAliases)
+	if err != nil {
+		logger.Error("failed to merge owner aliases", "error", err)
+		os.Exit(1)
+	}
+
 	cfg.sessionKey = sessionKey
 
 	app := &application{
@@ -181,7 +212,9 @@ func main() {
 		mailer:         mailer.New(sendGridKey, "FFArchive <robert@litts.org>", logger),
 		authManager:    NewAuthManager(),
 		redisClient:    redisClient,
+		draftTime:      NewDraftTimeLookup(logger),
 	}
+	app.seasonResults = app.seasonResultsPage
 
 	// Initialize the auth providers
 	ctx := context.Background()
