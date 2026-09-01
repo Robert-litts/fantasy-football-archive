@@ -173,26 +173,16 @@ func parseOwnerAliasesJSON(raw string) (map[string]string, error) {
 		return nil, fmt.Errorf("invalid OWNER_ALIASES_JSON: %w", err)
 	}
 
-	normalizedAliases := make(map[string]string, len(aliases))
-	for alias, canonical := range aliases {
-		normalizedAlias := strings.Join(strings.Fields(strings.TrimSpace(alias)), " ")
-		normalizedCanonical := strings.Join(strings.Fields(strings.TrimSpace(canonical)), " ")
-		if normalizedAlias == "" || normalizedCanonical == "" {
-			return nil, errors.New("invalid OWNER_ALIASES_JSON: aliases and canonical names must be non-empty")
-		}
-		normalizedAliases[normalizedAlias] = normalizedCanonical
-	}
-
-	return normalizedAliases, nil
+	return normalizeOwnerAliasMap(aliases, "OWNER_ALIASES_JSON")
 }
 
-func loadEnvironment() (string, string, string, int, string, map[string]string, string, string, int, int, time.Duration, string, string, string, string, int) {
+func loadEnvironment() (string, string, string, int, string, map[string]string, string, string, string, int, int, time.Duration, string, string, string, string, int) {
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env found, using system .env variables")
 	}
 	leagueID := os.Getenv("SLEEPER_LEAGUE_ID")
 	if leagueID == "" {
-		log.Fatal("Sleeper League ID environment variable not set")
+		log.Println("WARNING: SLEEPER_LEAGUE_ID environment variable not set; live draft time lookup will be skipped")
 	}
 	sleeperMainLeagueID := strings.TrimSpace(os.Getenv("SLEEPER_MAIN_LEAGUE_ID"))
 	baseCallbackURL := os.Getenv("BASE_CALLBACK_URL")
@@ -213,6 +203,7 @@ func loadEnvironment() (string, string, string, int, string, map[string]string, 
 	if err != nil {
 		log.Fatal(err)
 	}
+	ownerIdentitiesFile := ownerIdentitiesPathFromEnv()
 
 	dsn := os.Getenv("ESPN_DATABASE_URL")
 	if dsn == "" {
@@ -255,7 +246,7 @@ func loadEnvironment() (string, string, string, int, string, map[string]string, 
 	}
 
 	//return the env variables
-	return leagueID, sleeperMainLeagueID, baseCallbackURL, port, env, ownerAliases, dsn, sleeperDSN, dbMaxOpenConns, dbMaxIdleConns, dbMaxIdleTime, sessionKey, sendGridKey, redisAddr, redisPassword, redisDB
+	return leagueID, sleeperMainLeagueID, baseCallbackURL, port, env, ownerAliases, ownerIdentitiesFile, dsn, sleeperDSN, dbMaxOpenConns, dbMaxIdleConns, dbMaxIdleTime, sessionKey, sendGridKey, redisAddr, redisPassword, redisDB
 }
 
 // The background() helper accepts an arbitrary function as a parameter.
@@ -360,43 +351,4 @@ func FromNullString(ns sql.NullString) *string {
 		return nil
 	}
 	return &ns.String
-}
-
-type sleeper_draft struct {
-	StartTime int64 `json:"start_time"`
-}
-
-func Get_draft_time(leagueID string) (time.Time, error) {
-	url := fmt.Sprintf("https://api.sleeper.app/v1/league/%s/drafts", leagueID)
-
-	resp, err := http.Get(url)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("HTTP request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	var drafts []sleeper_draft
-	if err := json.Unmarshal(body, &drafts); err != nil {
-		return time.Time{}, fmt.Errorf("JSON unmarshal failed: %w", err)
-	}
-
-	if len(drafts) == 0 {
-		return time.Time{}, fmt.Errorf("no drafts found for league %s", leagueID)
-	}
-
-	// Unix (milliseconds) to UTC
-	utcTime := time.UnixMilli(drafts[0].StartTime).UTC()
-	loc, err := time.LoadLocation("America/New_York")
-	if err != nil {
-		return time.Time{}, fmt.Errorf("failed to load timezone: %w", err)
-	}
-
-	// Convert to New York time
-	nyTime := utcTime.In(loc)
-	return nyTime, nil
 }
