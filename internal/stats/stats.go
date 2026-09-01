@@ -1,8 +1,10 @@
 package stats
 
 import (
+	"fmt"
 	"math"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/Robert-litts/fantasy-football-archive/internal/db"
@@ -12,6 +14,9 @@ type PageData struct {
 	SeasonCount                int
 	OwnerCount                 int
 	MatchupCount               int
+	SleeperAvailable           bool
+	SleeperMessage             string
+	Warnings                   []error
 	HighlightCards             []HighlightCard
 	OwnerTotals                []OwnerTotal
 	RegularSeasonOwnerTotals   []OwnerTotal
@@ -43,8 +48,8 @@ type OwnerTotal struct {
 	Ties               int
 	Titles             int
 	PlayoffAppearances int
-	PointsFor          int
-	PointsAgainst      int
+	PointsFor          Points
+	PointsAgainst      Points
 	AveragePointsFor   float64
 	WinPct             float64
 }
@@ -69,8 +74,8 @@ type SeasonRecord struct {
 	Losses        int
 	Ties          int
 	FinalStanding int
-	PointsFor     int
-	PointsAgainst int
+	PointsFor     Points
+	PointsAgainst Points
 	WinPct        float64
 }
 
@@ -79,13 +84,151 @@ type ChampionRecord struct {
 	Owner        string
 	TeamName     string
 	Opponent     string
-	WinningScore float64
-	LosingScore  float64
+	WinningScore Points
+	LosingScore  Points
+}
+
+// Points stores a fantasy score in hundredths of a point.
+type Points int64
+
+func ParsePoints(value string) (Points, error) {
+	if value == "" {
+		return 0, fmt.Errorf("points cannot be blank")
+	}
+
+	negative := false
+	digits := value
+	if digits[0] == '+' || digits[0] == '-' {
+		negative = digits[0] == '-'
+		digits = digits[1:]
+		if digits == "" {
+			return 0, fmt.Errorf("invalid points %q", value)
+		}
+	}
+
+	whole, fraction, hasDecimal := strings.Cut(digits, ".")
+	if whole == "" || (hasDecimal && (len(fraction) == 0 || len(fraction) > 2)) || strings.Contains(fraction, ".") {
+		return 0, fmt.Errorf("invalid points %q", value)
+	}
+	for _, digit := range whole + fraction {
+		if digit < '0' || digit > '9' {
+			return 0, fmt.Errorf("invalid points %q", value)
+		}
+	}
+
+	if !hasDecimal {
+		fraction = "00"
+	} else if len(fraction) == 1 {
+		fraction += "0"
+	}
+	magnitude, err := strconv.ParseUint(whole+fraction, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("points %q overflow: %w", value, err)
+	}
+
+	if negative {
+		const minMagnitude = uint64(^uint64(0)>>1) + 1
+		if magnitude > minMagnitude {
+			return 0, fmt.Errorf("points %q overflow", value)
+		}
+		if magnitude == minMagnitude {
+			return Points(-1 << 63), nil
+		}
+		return -Points(magnitude), nil
+	}
+	if magnitude > uint64(^uint64(0)>>1) {
+		return 0, fmt.Errorf("points %q overflow", value)
+	}
+	return Points(magnitude), nil
+}
+
+func PointsFromFloat64(value float64) (Points, error) {
+	if math.IsNaN(value) || math.IsInf(value, 0) {
+		return 0, fmt.Errorf("invalid points value %v", value)
+	}
+	return ParsePoints(strconv.FormatFloat(value, 'f', -1, 64))
+}
+
+func PointsFromWhole(value int64) Points {
+	const maxWhole = int64(^uint64(0)>>1) / 100
+	const minWhole = (-1 << 63) / 100
+	if value > maxWhole || value < minWhole {
+		panic("whole points overflow")
+	}
+	return Points(value * 100)
+}
+
+func (points Points) Float64() float64 {
+	return float64(points) / 100
+}
+
+func (points Points) String() string {
+	raw := int64(points)
+	negative := raw < 0
+	magnitude := uint64(raw)
+	if negative {
+		magnitude = uint64(-(raw + 1)) + 1
+	}
+
+	value := strconv.FormatUint(magnitude/100, 10)
+	fraction := magnitude % 100
+	if fraction != 0 {
+		value += "."
+		if fraction < 10 {
+			value += "0"
+		}
+		value += strconv.FormatUint(fraction, 10)
+		value = strings.TrimSuffix(value, "0")
+	}
+	if negative && magnitude != 0 {
+		return "-" + value
+	}
+	return value
+}
+
+type MatchupWinner uint8
+
+const (
+	MatchupWinnerUnknown MatchupWinner = iota
+	MatchupWinnerHome
+	MatchupWinnerAway
+)
+
+type SeasonInput struct {
+	Year     int
+	Teams    []TeamInput
+	Matchups []MatchupInput
+}
+
+type TeamInput struct {
+	Owner         string
+	Wins          int
+	Losses        int
+	Ties          int
+	FinalStanding int
+	PointsFor     Points
+	PointsAgainst Points
+}
+
+type MatchupInput struct {
+	Week               int
+	HomePresent        bool
+	AwayPresent        bool
+	HomeOwner          string
+	HomeTeamName       string
+	HomeScore          Points
+	AwayOwner          string
+	AwayTeamName       string
+	AwayScore          Points
+	IsPlayoff          bool
+	IsChampionship     bool
+	ChampionshipWinner MatchupWinner
+	MatchupType        string
 }
 
 type singleGameRecord struct {
-	Score    float64
-	Margin   float64
+	Score    Points
+	Margin   Points
 	Owner    string
 	TeamName string
 	Opponent string
@@ -101,7 +244,55 @@ type recordBook struct {
 	closestWin     *singleGameRecord
 }
 
-func BuildPageData(leagues []db.GetAllLeaguesRow, teamsByLeague map[int32][]db.GetTeamsByLeagueYearRow, matchupsByLeague map[int32][]db.GetMatchupsByLeagueIdRow, ownerAliases map[string]string) PageData {
+func BuildPageData(leagues []db.GetAllLeaguesRow, teamsByLeague map[int32][]db.GetTeamsByLeagueYearRow, matchupsByLeague map[int32][]db.GetMatchupsByLeagueIdRow, ownerAliases map[string]string) (PageData, error) {
+	seasons := make([]SeasonInput, 0, len(leagues))
+	for _, league := range leagues {
+		season := SeasonInput{
+			Year:     int(league.Year),
+			Teams:    make([]TeamInput, 0, len(teamsByLeague[league.ID])),
+			Matchups: make([]MatchupInput, 0, len(matchupsByLeague[league.ID])),
+		}
+		for _, team := range teamsByLeague[league.ID] {
+			season.Teams = append(season.Teams, TeamInput{
+				Owner:         team.Owners,
+				Wins:          int(team.Wins),
+				Losses:        int(team.Losses),
+				Ties:          int(team.Ties),
+				FinalStanding: int(team.FinalStanding),
+				PointsFor:     PointsFromWhole(int64(team.PointsFor)),
+				PointsAgainst: PointsFromWhole(int64(team.PointsAgainst)),
+			})
+		}
+		for _, matchup := range matchupsByLeague[league.ID] {
+			homeScore, err := PointsFromFloat64(matchup.HomeScore)
+			if err != nil {
+				return PageData{}, fmt.Errorf("league %d week %d home score: %w", league.ID, matchup.Week, err)
+			}
+			awayScore, err := PointsFromFloat64(matchup.AwayScore)
+			if err != nil {
+				return PageData{}, fmt.Errorf("league %d week %d away score: %w", league.ID, matchup.Week, err)
+			}
+			season.Matchups = append(season.Matchups, MatchupInput{
+				Week:         int(matchup.Week),
+				HomePresent:  matchup.HomeTeamID.Valid,
+				AwayPresent:  matchup.AwayTeamID.Valid,
+				HomeOwner:    matchup.HomeTeamOwners,
+				HomeTeamName: matchup.HomeTeamName,
+				HomeScore:    homeScore,
+				AwayOwner:    matchup.AwayTeamOwners,
+				AwayTeamName: matchup.AwayTeamName,
+				AwayScore:    awayScore,
+				IsPlayoff:    matchup.IsPlayoff,
+				MatchupType:  matchup.MatchupType,
+			})
+		}
+		seasons = append(seasons, season)
+	}
+
+	return BuildPageDataFromSeasons(seasons, ownerAliases), nil
+}
+
+func BuildPageDataFromSeasons(seasons []SeasonInput, ownerAliases map[string]string) PageData {
 	ownerTotalsByName := make(map[string]*OwnerTotal)
 	playoffTotalsByName := make(map[string]*PlayoffOwnerTotal)
 	bestRegularSeasons := make([]SeasonRecord, 0)
@@ -112,69 +303,66 @@ func BuildPageData(leagues []db.GetAllLeaguesRow, teamsByLeague map[int32][]db.G
 	matchupCount := 0
 
 	getOwnerTotal := func(owner string) *OwnerTotal {
-		normalizedOwner := normalizeOwner(owner, ownerAliases)
-		if normalizedOwner == "" {
-			normalizedOwner = "Unknown"
+		if owner == "" {
+			owner = "Unknown"
 		}
-		if total, ok := ownerTotalsByName[normalizedOwner]; ok {
+		if total, ok := ownerTotalsByName[owner]; ok {
 			return total
 		}
-		total := &OwnerTotal{Owner: normalizedOwner}
-		ownerTotalsByName[normalizedOwner] = total
+		total := &OwnerTotal{Owner: owner}
+		ownerTotalsByName[owner] = total
 		return total
 	}
 
 	getPlayoffOwnerTotal := func(owner string) *PlayoffOwnerTotal {
-		normalizedOwner := normalizeOwner(owner, ownerAliases)
-		if normalizedOwner == "" {
-			normalizedOwner = "Unknown"
+		if owner == "" {
+			owner = "Unknown"
 		}
-		if total, ok := playoffTotalsByName[normalizedOwner]; ok {
+		if total, ok := playoffTotalsByName[owner]; ok {
 			return total
 		}
-		total := &PlayoffOwnerTotal{Owner: normalizedOwner}
-		playoffTotalsByName[normalizedOwner] = total
+		total := &PlayoffOwnerTotal{Owner: owner}
+		playoffTotalsByName[owner] = total
 		return total
 	}
 
-	for _, league := range leagues {
-		teams := teamsByLeague[league.ID]
-		for _, team := range teams {
-			total := getOwnerTotal(team.Owners)
+	for _, inputSeason := range seasons {
+		season := canonicalizeSeason(inputSeason, ownerAliases)
+		for _, team := range season.Teams {
+			total := getOwnerTotal(team.Owner)
 			total.Seasons++
-			total.Wins += int(team.Wins)
-			total.Losses += int(team.Losses)
-			total.Ties += int(team.Ties)
-			total.PointsFor += int(team.PointsFor)
-			total.PointsAgainst += int(team.PointsAgainst)
+			total.Wins += team.Wins
+			total.Losses += team.Losses
+			total.Ties += team.Ties
+			total.PointsFor += team.PointsFor
+			total.PointsAgainst += team.PointsAgainst
 
 			bestRegularSeasons = append(bestRegularSeasons, SeasonRecord{
 				Owner:         total.Owner,
-				Year:          int(league.Year),
-				Wins:          int(team.Wins),
-				Losses:        int(team.Losses),
-				Ties:          int(team.Ties),
-				FinalStanding: int(team.FinalStanding),
-				PointsFor:     int(team.PointsFor),
-				PointsAgainst: int(team.PointsAgainst),
-				WinPct:        calculateWinPct(int(team.Wins), int(team.Losses), int(team.Ties)),
+				Year:          season.Year,
+				Wins:          team.Wins,
+				Losses:        team.Losses,
+				Ties:          team.Ties,
+				FinalStanding: team.FinalStanding,
+				PointsFor:     team.PointsFor,
+				PointsAgainst: team.PointsAgainst,
+				WinPct:        calculateWinPct(team.Wins, team.Losses, team.Ties),
 			})
 		}
 
-		matchups := matchupsByLeague[league.ID]
-		for owner := range collectPlayoffOwners(matchups, ownerAliases) {
+		for owner := range collectPlayoffOwners(season.Matchups) {
 			getOwnerTotal(owner).PlayoffAppearances++
 			getPlayoffOwnerTotal(owner).Appearances++
 		}
 
-		if championship := findChampionshipMatch(matchups); championship != nil {
+		if championship := findChampionshipMatch(season.Matchups); championship != nil {
 			winnerOwner, winnerTeam, loserTeam, winnerScore, loserScore := championshipWinner(*championship)
 			if winnerOwner != "" {
 				getOwnerTotal(winnerOwner).Titles++
 				getPlayoffOwnerTotal(winnerOwner).Titles++
 				champions = append(champions, ChampionRecord{
-					Year:         int(championship.LeagueYear),
-					Owner:        normalizeOwner(winnerOwner, ownerAliases),
+					Year:         season.Year,
+					Owner:        winnerOwner,
 					TeamName:     winnerTeam,
 					Opponent:     loserTeam,
 					WinningScore: winnerScore,
@@ -182,29 +370,32 @@ func BuildPageData(leagues []db.GetAllLeaguesRow, teamsByLeague map[int32][]db.G
 				})
 			}
 
-			championHomeGame, championAwayGame := buildSingleGameRecords(*championship, ownerAliases)
-			updateRecordBook(championshipRecords, championHomeGame, championAwayGame)
-			if winnerOwner != "" {
-				getPlayoffOwnerTotal(winnerOwner).FinalsAppearances++
+			championHomeGame, championAwayGame := buildSingleGameRecords(*championship)
+			championHomeGame.Year = season.Year
+			championAwayGame.Year = season.Year
+			updateRecordBook(championshipRecords, *championship, championHomeGame, championAwayGame)
+			if championship.HomeOwner != "" {
+				getPlayoffOwnerTotal(championship.HomeOwner).FinalsAppearances++
 			}
-			loserOwner := championshipLoserOwner(*championship)
-			if loserOwner != "" {
-				getPlayoffOwnerTotal(loserOwner).FinalsAppearances++
+			if championship.AwayOwner != "" && championship.AwayOwner != championship.HomeOwner {
+				getPlayoffOwnerTotal(championship.AwayOwner).FinalsAppearances++
 			}
 		}
 
-		for _, matchup := range matchups {
-			if !matchup.HomeTeamID.Valid || !matchup.AwayTeamID.Valid {
+		for _, matchup := range season.Matchups {
+			if !matchup.HomePresent || !matchup.AwayPresent {
 				continue
 			}
 
 			matchupCount++
-			homeGame, awayGame := buildSingleGameRecords(matchup, ownerAliases)
-			updateRecordBook(allRecords, homeGame, awayGame)
+			homeGame, awayGame := buildSingleGameRecords(matchup)
+			homeGame.Year = season.Year
+			awayGame.Year = season.Year
+			updateRecordBook(allRecords, matchup, homeGame, awayGame)
 
 			if matchup.IsPlayoff && matchup.MatchupType == "WINNERS_BRACKET" {
-				updateRecordBook(playoffRecords, homeGame, awayGame)
-				applyPlayoffResult(getPlayoffOwnerTotal, homeGame, awayGame)
+				updateRecordBook(playoffRecords, matchup, homeGame, awayGame)
+				applyPlayoffResult(getPlayoffOwnerTotal, matchup, homeGame, awayGame)
 			}
 		}
 	}
@@ -302,7 +493,7 @@ func BuildPageData(leagues []db.GetAllLeaguesRow, teamsByLeague map[int32][]db.G
 	})
 
 	return PageData{
-		SeasonCount:                len(leagues),
+		SeasonCount:                len(seasons),
 		OwnerCount:                 len(ownerTotals),
 		MatchupCount:               matchupCount,
 		HighlightCards:             buildOverviewHighlightCards(allRecords, ownerTotals),
@@ -319,9 +510,23 @@ func BuildPageData(leagues []db.GetAllLeaguesRow, teamsByLeague map[int32][]db.G
 func normalizeOwner(owner string, ownerAliases map[string]string) string {
 	normalized := strings.Join(strings.Fields(strings.TrimSpace(owner)), " ")
 	if canonical, ok := ownerAliases[normalized]; ok {
-		return canonical
+		return strings.Join(strings.Fields(strings.TrimSpace(canonical)), " ")
 	}
 	return normalized
+}
+
+func canonicalizeSeason(season SeasonInput, ownerAliases map[string]string) SeasonInput {
+	canonical := season
+	canonical.Teams = append([]TeamInput(nil), season.Teams...)
+	for i := range canonical.Teams {
+		canonical.Teams[i].Owner = normalizeOwner(canonical.Teams[i].Owner, ownerAliases)
+	}
+	canonical.Matchups = append([]MatchupInput(nil), season.Matchups...)
+	for i := range canonical.Matchups {
+		canonical.Matchups[i].HomeOwner = normalizeOwner(canonical.Matchups[i].HomeOwner, ownerAliases)
+		canonical.Matchups[i].AwayOwner = normalizeOwner(canonical.Matchups[i].AwayOwner, ownerAliases)
+	}
+	return canonical
 }
 
 func calculateWinPct(wins, losses, ties int) float64 {
@@ -332,11 +537,11 @@ func calculateWinPct(wins, losses, ties int) float64 {
 	return (float64(wins) + float64(ties)*0.5) / float64(totalGames)
 }
 
-func calculateAverage(total, count int) float64 {
+func calculateAverage(total Points, count int) float64 {
 	if count == 0 {
 		return 0
 	}
-	return float64(total) / float64(count)
+	return total.Float64() / float64(count)
 }
 
 func calculateRatio(numerator, denominator int) float64 {
@@ -346,29 +551,27 @@ func calculateRatio(numerator, denominator int) float64 {
 	return float64(numerator) / float64(denominator)
 }
 
-func buildSingleGameRecords(matchup db.GetMatchupsByLeagueIdRow, ownerAliases map[string]string) (singleGameRecord, singleGameRecord) {
+func buildSingleGameRecords(matchup MatchupInput) (singleGameRecord, singleGameRecord) {
 	homeGame := singleGameRecord{
 		Score:    matchup.HomeScore,
-		Owner:    normalizeOwner(matchup.HomeTeamOwners, ownerAliases),
+		Owner:    matchup.HomeOwner,
 		TeamName: matchup.HomeTeamName,
 		Opponent: matchup.AwayTeamName,
-		Year:     int(matchup.LeagueYear),
-		Week:     int(matchup.Week),
+		Week:     matchup.Week,
 		Detail:   formatGameType(matchup.IsPlayoff, matchup.MatchupType),
 	}
 	awayGame := singleGameRecord{
 		Score:    matchup.AwayScore,
-		Owner:    normalizeOwner(matchup.AwayTeamOwners, ownerAliases),
+		Owner:    matchup.AwayOwner,
 		TeamName: matchup.AwayTeamName,
 		Opponent: matchup.HomeTeamName,
-		Year:     int(matchup.LeagueYear),
-		Week:     int(matchup.Week),
+		Week:     matchup.Week,
 		Detail:   formatGameType(matchup.IsPlayoff, matchup.MatchupType),
 	}
 	return homeGame, awayGame
 }
 
-func updateRecordBook(records *recordBook, homeGame, awayGame singleGameRecord) {
+func updateRecordBook(records *recordBook, matchup MatchupInput, homeGame, awayGame singleGameRecord) {
 	if records.highestScore == nil || homeGame.Score > records.highestScore.Score {
 		copyHome := homeGame
 		records.highestScore = &copyHome
@@ -385,14 +588,18 @@ func updateRecordBook(records *recordBook, homeGame, awayGame singleGameRecord) 
 		copyAway := awayGame
 		records.lowestScore = &copyAway
 	}
-	if homeGame.Score == awayGame.Score {
+	winnerSide := matchupResultWinner(matchup)
+	if winnerSide == MatchupWinnerUnknown {
 		return
 	}
 
-	margin := math.Abs(homeGame.Score - awayGame.Score)
+	margin := homeGame.Score - awayGame.Score
+	if margin < 0 {
+		margin = -margin
+	}
 	winner := homeGame
 	loser := awayGame
-	if awayGame.Score > homeGame.Score {
+	if winnerSide == MatchupWinnerAway {
 		winner = awayGame
 		loser = homeGame
 	}
@@ -410,17 +617,15 @@ func updateRecordBook(records *recordBook, homeGame, awayGame singleGameRecord) 
 	}
 }
 
-func applyPlayoffResult(getPlayoffOwnerTotal func(string) *PlayoffOwnerTotal, homeGame, awayGame singleGameRecord) {
-	if homeGame.Score == awayGame.Score {
-		return
-	}
-	if homeGame.Score > awayGame.Score {
+func applyPlayoffResult(getPlayoffOwnerTotal func(string) *PlayoffOwnerTotal, matchup MatchupInput, homeGame, awayGame singleGameRecord) {
+	switch matchupResultWinner(matchup) {
+	case MatchupWinnerHome:
 		getPlayoffOwnerTotal(homeGame.Owner).Wins++
 		getPlayoffOwnerTotal(awayGame.Owner).Losses++
-		return
+	case MatchupWinnerAway:
+		getPlayoffOwnerTotal(awayGame.Owner).Wins++
+		getPlayoffOwnerTotal(homeGame.Owner).Losses++
 	}
-	getPlayoffOwnerTotal(awayGame.Owner).Wins++
-	getPlayoffOwnerTotal(homeGame.Owner).Losses++
 }
 
 func buildOverviewHighlightCards(records *recordBook, ownerTotals []OwnerTotal) []HighlightCard {
@@ -435,19 +640,19 @@ func buildOverviewHighlightCards(records *recordBook, ownerTotals []OwnerTotal) 
 		highlightCards = append(highlightCards, HighlightCard{Label: "All-time wins leader", Value: float64(mostWins.Wins), ValueText: "wins", Owner: mostWins.Owner, Detail: "All seasons combined"})
 	}
 	if mostPlayoffs := findMostPlayoffAppearancesLeader(ownerTotals); mostPlayoffs != nil {
-		highlightCards = append(highlightCards, HighlightCard{Label: "Most playoff trips", Value: float64(mostPlayoffs.PlayoffAppearances), ValueText: "appearances", Owner: mostPlayoffs.Owner, Detail: "First-week winners-bracket appearances"})
+		highlightCards = append(highlightCards, HighlightCard{Label: "Most playoff trips", Value: float64(mostPlayoffs.PlayoffAppearances), ValueText: "appearances", Owner: mostPlayoffs.Owner, Detail: "Any winners-bracket participation"})
 	}
 	if mostPointsFor := findMostPointsForLeader(ownerTotals); mostPointsFor != nil {
-		highlightCards = append(highlightCards, HighlightCard{Label: "Most points scored", Value: float64(mostPointsFor.PointsFor), ValueText: "points", Owner: mostPointsFor.Owner, Detail: "All seasons combined"})
+		highlightCards = append(highlightCards, HighlightCard{Label: "Most points scored", Value: mostPointsFor.PointsFor.Float64(), ValueText: "points", Owner: mostPointsFor.Owner, Detail: "All seasons combined"})
 	}
 	if bestAverage := findBestAveragePointsLeader(ownerTotals); bestAverage != nil {
 		highlightCards = append(highlightCards, HighlightCard{Label: "Best avg season scoring", Value: bestAverage.AveragePointsFor, ValueText: "points per season", Owner: bestAverage.Owner, Detail: "Average points scored per season played"})
 	}
 	if mostPointsAgainst := findMostPointsAgainstLeader(ownerTotals); mostPointsAgainst != nil {
-		highlightCards = append(highlightCards, HighlightCard{Label: "Most points allowed", Value: float64(mostPointsAgainst.PointsAgainst), ValueText: "points", Owner: mostPointsAgainst.Owner, Detail: "All seasons combined"})
+		highlightCards = append(highlightCards, HighlightCard{Label: "Most points allowed", Value: mostPointsAgainst.PointsAgainst.Float64(), ValueText: "points", Owner: mostPointsAgainst.Owner, Detail: "All seasons combined"})
 	}
 	if mostTitles := findMostTitlesLeader(ownerTotals); mostTitles != nil {
-		highlightCards = append(highlightCards, HighlightCard{Label: "Most championships", Value: float64(mostTitles.Titles), ValueText: "titles", Owner: mostTitles.Owner, Detail: "Winner of the final winners-bracket matchup"})
+		highlightCards = append(highlightCards, HighlightCard{Label: "Most championships", Value: float64(mostTitles.Titles), ValueText: "titles", Owner: mostTitles.Owner, Detail: "Verified championship winners"})
 	}
 
 	return highlightCards
@@ -465,7 +670,7 @@ func buildPlayoffHighlightCards(records *recordBook, playoffOwnerTotals []Playof
 		highlightCards = append(highlightCards, HighlightCard{Label: "Most playoff wins", Value: float64(mostWins.Wins), ValueText: "wins", Owner: mostWins.Owner, Detail: "Winners-bracket games only"})
 	}
 	if mostTitles := findMostPlayoffTitlesLeader(playoffOwnerTotals); mostTitles != nil {
-		highlightCards = append(highlightCards, HighlightCard{Label: "Most postseason titles", Value: float64(mostTitles.Titles), ValueText: "titles", Owner: mostTitles.Owner, Detail: "Winners of the final winners-bracket matchup"})
+		highlightCards = append(highlightCards, HighlightCard{Label: "Most postseason titles", Value: float64(mostTitles.Titles), ValueText: "titles", Owner: mostTitles.Owner, Detail: "Verified championship winners"})
 	}
 	if mostFinals := findMostFinalsAppearancesLeader(playoffOwnerTotals); mostFinals != nil {
 		highlightCards = append(highlightCards, HighlightCard{Label: "Most finals appearances", Value: float64(mostFinals.FinalsAppearances), ValueText: "finals", Owner: mostFinals.Owner, Detail: "Championship game appearances"})
@@ -489,56 +694,47 @@ func buildChampionshipHighlightCards(records *recordBook) []HighlightCard {
 func buildRecordCards(records *recordBook, labels map[string]string) []HighlightCard {
 	highlightCards := make([]HighlightCard, 0, 6)
 	if records.highestScore != nil {
-		highlightCards = append(highlightCards, HighlightCard{Label: labels["highest"], Value: records.highestScore.Score, ValueText: "points", Owner: records.highestScore.Owner, TeamName: records.highestScore.TeamName, Opponent: records.highestScore.Opponent, Year: records.highestScore.Year, Week: records.highestScore.Week, Detail: records.highestScore.Detail})
+		highlightCards = append(highlightCards, HighlightCard{Label: labels["highest"], Value: records.highestScore.Score.Float64(), ValueText: "points", Owner: records.highestScore.Owner, TeamName: records.highestScore.TeamName, Opponent: records.highestScore.Opponent, Year: records.highestScore.Year, Week: records.highestScore.Week, Detail: records.highestScore.Detail})
 	}
 	if records.lowestScore != nil {
-		highlightCards = append(highlightCards, HighlightCard{Label: labels["lowest"], Value: records.lowestScore.Score, ValueText: "points", Owner: records.lowestScore.Owner, TeamName: records.lowestScore.TeamName, Opponent: records.lowestScore.Opponent, Year: records.lowestScore.Year, Week: records.lowestScore.Week, Detail: records.lowestScore.Detail})
+		highlightCards = append(highlightCards, HighlightCard{Label: labels["lowest"], Value: records.lowestScore.Score.Float64(), ValueText: "points", Owner: records.lowestScore.Owner, TeamName: records.lowestScore.TeamName, Opponent: records.lowestScore.Opponent, Year: records.lowestScore.Year, Week: records.lowestScore.Week, Detail: records.lowestScore.Detail})
 	}
 	if records.biggestBlowout != nil {
-		highlightCards = append(highlightCards, HighlightCard{Label: labels["blowout"], Value: records.biggestBlowout.Margin, ValueText: "point margin", Owner: records.biggestBlowout.Owner, TeamName: records.biggestBlowout.TeamName, Opponent: records.biggestBlowout.Opponent, Year: records.biggestBlowout.Year, Week: records.biggestBlowout.Week, Detail: records.biggestBlowout.Detail})
+		highlightCards = append(highlightCards, HighlightCard{Label: labels["blowout"], Value: records.biggestBlowout.Margin.Float64(), ValueText: "point margin", Owner: records.biggestBlowout.Owner, TeamName: records.biggestBlowout.TeamName, Opponent: records.biggestBlowout.Opponent, Year: records.biggestBlowout.Year, Week: records.biggestBlowout.Week, Detail: records.biggestBlowout.Detail})
 	}
 	if records.closestWin != nil {
-		highlightCards = append(highlightCards, HighlightCard{Label: labels["closest"], Value: records.closestWin.Margin, ValueText: "point margin", Owner: records.closestWin.Owner, TeamName: records.closestWin.TeamName, Opponent: records.closestWin.Opponent, Year: records.closestWin.Year, Week: records.closestWin.Week, Detail: records.closestWin.Detail})
+		highlightCards = append(highlightCards, HighlightCard{Label: labels["closest"], Value: records.closestWin.Margin.Float64(), ValueText: "point margin", Owner: records.closestWin.Owner, TeamName: records.closestWin.TeamName, Opponent: records.closestWin.Opponent, Year: records.closestWin.Year, Week: records.closestWin.Week, Detail: records.closestWin.Detail})
 	}
 	return highlightCards
 }
 
-func findChampionshipMatch(matchups []db.GetMatchupsByLeagueIdRow) *db.GetMatchupsByLeagueIdRow {
-	var championship *db.GetMatchupsByLeagueIdRow
+func findChampionshipMatch(matchups []MatchupInput) *MatchupInput {
+	var championship *MatchupInput
 	for i := range matchups {
 		matchup := &matchups[i]
-		if !matchup.HomeTeamID.Valid || !matchup.AwayTeamID.Valid {
-			continue
-		}
-		if !matchup.IsPlayoff || matchup.MatchupType != "WINNERS_BRACKET" {
-			continue
-		}
-		if championship == nil || matchup.Week > championship.Week {
-			championship = matchup
+		if matchup.HomePresent && matchup.AwayPresent && matchup.IsChampionship {
+			if championship == nil || matchup.Week > championship.Week {
+				championship = matchup
+			}
 		}
 	}
 	return championship
 }
 
-func collectPlayoffOwners(matchups []db.GetMatchupsByLeagueIdRow, ownerAliases map[string]string) map[string]struct{} {
+func collectPlayoffOwners(matchups []MatchupInput) map[string]struct{} {
 	playoffOwners := make(map[string]struct{})
-	firstPlayoffWeek, ok := findFirstPlayoffWeek(matchups)
-	if !ok {
-		return playoffOwners
-	}
-
 	for _, matchup := range matchups {
-		if !matchup.IsPlayoff || matchup.Week != firstPlayoffWeek || matchup.MatchupType != "WINNERS_BRACKET" {
+		if !matchup.IsPlayoff || matchup.MatchupType != "WINNERS_BRACKET" {
 			continue
 		}
-		if matchup.HomeTeamID.Valid {
-			if owner := normalizeOwner(matchup.HomeTeamOwners, ownerAliases); owner != "" {
-				playoffOwners[owner] = struct{}{}
+		if matchup.HomePresent {
+			if matchup.HomeOwner != "" {
+				playoffOwners[matchup.HomeOwner] = struct{}{}
 			}
 		}
-		if matchup.AwayTeamID.Valid {
-			if owner := normalizeOwner(matchup.AwayTeamOwners, ownerAliases); owner != "" {
-				playoffOwners[owner] = struct{}{}
+		if matchup.AwayPresent {
+			if matchup.AwayOwner != "" {
+				playoffOwners[matchup.AwayOwner] = struct{}{}
 			}
 		}
 	}
@@ -546,39 +742,33 @@ func collectPlayoffOwners(matchups []db.GetMatchupsByLeagueIdRow, ownerAliases m
 	return playoffOwners
 }
 
-func findFirstPlayoffWeek(matchups []db.GetMatchupsByLeagueIdRow) (int32, bool) {
-	var firstPlayoffWeek int32
-	found := false
-	for _, matchup := range matchups {
-		if !matchup.IsPlayoff {
-			continue
-		}
-		if !found || matchup.Week < firstPlayoffWeek {
-			firstPlayoffWeek = matchup.Week
-			found = true
-		}
-	}
-	return firstPlayoffWeek, found
-}
-
-func championshipWinner(matchup db.GetMatchupsByLeagueIdRow) (winnerOwner, winnerTeam, loserTeam string, winnerScore, loserScore float64) {
-	if matchup.HomeScore > matchup.AwayScore {
-		return matchup.HomeTeamOwners, matchup.HomeTeamName, matchup.AwayTeamName, matchup.HomeScore, matchup.AwayScore
-	}
-	if matchup.AwayScore > matchup.HomeScore {
-		return matchup.AwayTeamOwners, matchup.AwayTeamName, matchup.HomeTeamName, matchup.AwayScore, matchup.HomeScore
+func championshipWinner(matchup MatchupInput) (winnerOwner, winnerTeam, loserTeam string, winnerScore, loserScore Points) {
+	switch matchupResultWinner(matchup) {
+	case MatchupWinnerHome:
+		return matchup.HomeOwner, matchup.HomeTeamName, matchup.AwayTeamName, matchup.HomeScore, matchup.AwayScore
+	case MatchupWinnerAway:
+		return matchup.AwayOwner, matchup.AwayTeamName, matchup.HomeTeamName, matchup.AwayScore, matchup.HomeScore
 	}
 	return "", "", "", 0, 0
 }
 
-func championshipLoserOwner(matchup db.GetMatchupsByLeagueIdRow) string {
+func matchupResultWinner(matchup MatchupInput) MatchupWinner {
+	if matchup.IsChampionship {
+		switch matchup.ChampionshipWinner {
+		case MatchupWinnerHome, MatchupWinnerAway:
+			return matchup.ChampionshipWinner
+		case MatchupWinnerUnknown:
+		default:
+			return MatchupWinnerUnknown
+		}
+	}
 	if matchup.HomeScore > matchup.AwayScore {
-		return matchup.AwayTeamOwners
+		return MatchupWinnerHome
 	}
 	if matchup.AwayScore > matchup.HomeScore {
-		return matchup.HomeTeamOwners
+		return MatchupWinnerAway
 	}
-	return ""
+	return MatchupWinnerUnknown
 }
 
 func formatGameType(isPlayoff bool, matchupType string) string {

@@ -50,6 +50,18 @@ templ Stats(pageData appstats.PageData) {
 					</div>
 				</div>
 			</div>
+			if pageData.SleeperMessage != "" {
+				<div role="status" class="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-5 py-4 text-amber-100">
+					<div class="text-xs font-bold uppercase tracking-[0.22em]">
+						if pageData.SleeperAvailable {
+							Sleeper archive status
+						} else {
+							Sleeper archive unavailable
+						}
+					</div>
+					<div class="mt-1 text-sm">{ pageData.SleeperMessage }</div>
+				</div>
+			}
 
 			<div id="stats-tabs" data-default-tab="overview" class="space-y-8">
 				<div class="border-b border-gray-700">
@@ -85,7 +97,7 @@ templ Stats(pageData appstats.PageData) {
 						</div>
 
 						<div class="space-y-8">
-							@StatsChampionshipTimeline(pageData.Champions, "Championship timeline", "Each champion is derived from the final winners-bracket matchup for that season.")
+							@StatsChampionshipTimeline(pageData.Champions, "Championship timeline", "Verified winners from games explicitly identified as each season's championship.")
 						</div>
 					</div>
 
@@ -112,7 +124,7 @@ templ Stats(pageData appstats.PageData) {
 				<div data-stats-tab-panel="playoffs" class="hidden space-y-8">
 					<div class="rounded-3xl border border-gray-700 bg-gray-800/80 p-6 shadow-xl">
 						<h2 class="text-2xl font-bold text-white">Playoff archive</h2>
-						<p class="mt-1 text-sm text-gray-400">Postseason stats are limited to winners-bracket games, with playoff appearances defined as entering the winners bracket in the first playoff week.</p>
+						<p class="mt-1 text-sm text-gray-400">Postseason stats include all winners-bracket participation across every playoff round. Championships are shown only for explicitly identified title games with a verified winner.</p>
 					</div>
 
 					if len(pageData.PlayoffHighlightCards) > 0 {
@@ -152,7 +164,7 @@ templ Stats(pageData appstats.PageData) {
 							@StatsPlayoffOwnerTotalsTable(pageData.PlayoffOwnerTotals)
 						</div>
 
-						@StatsChampionshipTimeline(pageData.Champions, "Championship timeline", "The final winners-bracket result for each season, shown in one postseason-only view.")
+						@StatsChampionshipTimeline(pageData.Champions, "Championship timeline", "Verified championship results from explicitly identified title games, shown in one postseason-only view.")
 					</div>
 				</div>
 			</div>
@@ -241,8 +253,8 @@ templ StatsOwnerTotalsTable(owners []appstats.OwnerTotal, showTitles bool, showP
 						if showPlayoffs {
 							<td class="px-4 py-4 text-sm text-gray-300">{ strconv.Itoa(owner.PlayoffAppearances) }</td>
 						}
-						<td class="px-4 py-4 text-sm text-gray-300">{ strconv.Itoa(owner.PointsFor) }</td>
-						<td class="px-4 py-4 text-sm text-gray-300">{ strconv.Itoa(owner.PointsAgainst) }</td>
+						<td class="px-4 py-4 text-sm text-gray-300">{ owner.PointsFor.String() }</td>
+						<td class="px-4 py-4 text-sm text-gray-300">{ owner.PointsAgainst.String() }</td>
 						<td class="px-4 py-4 text-sm text-gray-300">{ statsNumber(owner.AveragePointsFor) }</td>
 					</tr>
 				}
@@ -299,7 +311,7 @@ templ StatsChampionshipTimeline(champions []appstats.ChampionRecord, title strin
 					</div>
 					<div class="text-right">
 						<div class="text-sm font-medium text-yellow-300">{ strconv.Itoa(champion.Year) }</div>
-						<div class="text-xs text-gray-400">{ statsNumber(champion.WinningScore) } - { statsNumber(champion.LosingScore) }</div>
+						<div class="text-xs text-gray-400">{ champion.WinningScore.String() } - { champion.LosingScore.String() }</div>
 					</div>
 				</div>
 			}
@@ -335,8 +347,8 @@ templ StatsBestRegularSeasons(seasons []appstats.SeasonRecord) {
 							<td class="px-4 py-4 text-sm text-gray-300">{ strconv.Itoa(season.Year) }</td>
 							<td class="px-4 py-4 text-sm text-gray-300">{ statsRecordLine(season.Wins, season.Losses, season.Ties) }</td>
 							<td class="px-4 py-4 text-sm text-gray-300">{ statsPct(season.WinPct) }</td>
-							<td class="px-4 py-4 text-sm text-gray-300">{ strconv.Itoa(season.PointsFor) }</td>
-							<td class="px-4 py-4 text-sm text-gray-300">{ strconv.Itoa(season.PointsAgainst) }</td>
+							<td class="px-4 py-4 text-sm text-gray-300">{ season.PointsFor.String() }</td>
+							<td class="px-4 py-4 text-sm text-gray-300">{ season.PointsAgainst.String() }</td>
 							<td class="px-4 py-4 text-sm text-gray-300">{ strconv.Itoa(season.FinalStanding) }</td>
 						</tr>
 					}
