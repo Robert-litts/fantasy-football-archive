@@ -177,20 +177,7 @@ func (app *application) leaguesPageHandler(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-// leaguesRefreshHandler handles HTMX requests to refresh the leagues table.
-func (app *application) leaguesRefreshHandler(w http.ResponseWriter, r *http.Request) {
-	page, err := app.leagueArchivePage(r)
-	if err != nil {
-		app.logger.Error("database error", "error", err)
-		app.serverErrorResponse(w, r, err)
-		return
-	}
-
-	err = templates.LeaguesTable(page.Leagues).Render(r.Context(), w)
-	if err != nil {
-		app.serverErrorResponse(w, r, err)
-	}
-}
+// leaguesRefreshHandler removed; was dead code.
 
 func (app *application) leaguesIndexHandler(w http.ResponseWriter, r *http.Request) {
 	component := templates.Index()

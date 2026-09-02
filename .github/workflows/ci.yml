@@ -44,7 +44,9 @@ jobs:
         run: |
           go install github.com/a-h/templ/cmd/templ@v0.3.943
           go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0
-          go install honnef.co/go/tools/cmd/staticcheck@latest
+          go install honnef.co/go/tools/cmd/staticcheck@v0.5.1
+        env:
+          GOPROXY: https://proxy.golang.org,direct
 
       - name: npm ci
         run: npm ci
