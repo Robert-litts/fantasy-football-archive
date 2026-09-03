@@ -105,8 +105,8 @@ ci: templ/generate
 	@echo 'Running tests...'
 	GOTOOLCHAIN=go1.23.3 go test -race -vet=off -count=1 ./...
 	@echo 'Building native binary...'
-	@VERSION=$${VERSION:-$(shell git describe --tags --always --dirty 2>/dev/null || echo development)}
-	GOTOOLCHAIN=go1.23.3 go build -trimpath -ldflags="-s -w -X main.version=$$VERSION" -o=./bin/api ./cmd/api
+	@VERSION=$${VERSION:-$(shell git describe --tags --always --dirty 2>/dev/null || echo development)}; \
+		GOTOOLCHAIN=go1.23.3 go build -trimpath -ldflags="-s -w -X main.version=$$VERSION" -o=./bin/api ./cmd/api
 
 # ==================================================================================== #
 # BUILD
@@ -116,8 +116,8 @@ ci: templ/generate
 .PHONY: build/api
 build/api: templ/generate assets/build
 	@echo 'Building cmd/api...'
-	@VERSION=$${VERSION:-$(shell git describe --tags --always --dirty 2>/dev/null || echo development)}
-	GOTOOLCHAIN=go1.23.3 go build -trimpath -ldflags="-s -w -X main.version=$$VERSION" -o=./bin/api ./cmd/api
+	@VERSION=$${VERSION:-$(shell git describe --tags --always --dirty 2>/dev/null || echo development)}; \
+		GOTOOLCHAIN=go1.23.3 go build -trimpath -ldflags="-s -w -X main.version=$$VERSION" -o=./bin/api ./cmd/api
 
 .PHONY: templ/generate
 templ/generate:

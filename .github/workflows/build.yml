@@ -12,9 +12,21 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+
 jobs:
+  test:
+    uses: ./.github/workflows/ci.yml
+
   build-and-push:
+    needs: test
     runs-on: ubuntu-latest
+
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+      image_digest: ${{ steps.build.outputs.digest }}
 
     permissions:
       contents: read
@@ -23,6 +35,20 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify release commit is on main
+        run: |
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "release tag must match vX.Y.Z" >&2
+            exit 1
+          fi
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "release tag must point to a commit on main" >&2
+            exit 1
+          fi
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -32,9 +58,9 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          flavor: latest=false
           tags: |
             type=ref,event=tag
-            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Log in to Container Registry
         uses: docker/login-action@v3
@@ -44,6 +70,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push Docker image
+        id: build
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -58,6 +85,11 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: build-and-push
+    environment: production
+    permissions: {}
+    env:
+      API_IMAGE: ${{ needs.build-and-push.outputs.image_tag }}@${{ needs.build-and-push.outputs.image_digest }}
+      EXPECTED_VERSION: ${{ github.ref_name }}
     steps:
       - name: Execute remote SSH commands using SSH key
         uses: appleboy/ssh-action@v1
@@ -66,23 +98,123 @@ jobs:
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.KEY }}
           port: ${{ secrets.PORT }}
+          fingerprint: ${{ secrets.FINGERPRINT }}
+          envs: API_IMAGE,EXPECTED_VERSION
           script: |
             set -euo pipefail
             cd ~/docker
-            OLD_IMAGE=$(docker compose ps -q api || true)
-            docker compose pull
-            docker compose up -d --remove-orphans
-            for attempt in $(seq 1 30); do
-              if curl -fsS http://127.0.0.1:4000/api/v1/healthcheck >/dev/null; then
-                echo "healthcheck OK"
-                break
-              fi
-              sleep 2
-            done
-            if ! curl -fsS http://127.0.0.1:4000/api/v1/healthcheck >/dev/null; then
-              echo "healthcheck failed after deploy" >&2
+
+            CONFIG_IMAGES=$(API_IMAGE="$API_IMAGE" docker compose config --images)
+            case "
+            $CONFIG_IMAGES
+            " in
+              *"
+            $API_IMAGE
+            "*) ;;
+              *)
+                echo "production Compose does not resolve api to $API_IMAGE" >&2
+                exit 1
+                ;;
+            esac
+
+            OLD_CONTAINER=$(docker compose ps -q api)
+            if [ -z "$OLD_CONTAINER" ]; then
+              echo "cannot deploy safely: existing API container was not found" >&2
               exit 1
             fi
-            if [ -n "$OLD_IMAGE" ]; then
-              docker image prune -f || true
+
+            OLD_IMAGE_ID=$(docker inspect --format '{{.Image}}' "$OLD_CONTAINER")
+            ROLLBACK_IMAGE="fantasy-football-archive:rollback"
+            docker image tag "$OLD_IMAGE_ID" "$ROLLBACK_IMAGE"
+
+            wait_for_health() {
+              expected_version=${1:-}
+              for attempt in $(seq 1 30); do
+                response=$(curl --connect-timeout 2 --max-time 5 -fsS \
+                  http://127.0.0.1:4000/api/v1/healthcheck || true)
+                if [ -n "$response" ]; then
+                  if [ -z "$expected_version" ]; then
+                    return 0
+                  fi
+                  case "$response" in
+                    *\"version\":\ \"$expected_version\"*) return 0 ;;
+                  esac
+                fi
+                if [ "$attempt" -lt 30 ]; then
+                  sleep 2
+                fi
+              done
+              return 1
+            }
+
+            DEPLOY_STARTED=false
+
+            rollback_on_failure() {
+              status=$?
+              trap - EXIT
+              if [ "$status" -eq 0 ] || [ "$DEPLOY_STARTED" != true ]; then
+                exit "$status"
+              fi
+
+              echo "rolling back to $OLD_IMAGE_ID" >&2
+              docker compose logs --no-color --tail=100 api || true
+
+              if ! API_IMAGE="$ROLLBACK_IMAGE" docker compose up -d --no-deps api; then
+                echo "FATAL: rollback container failed to start" >&2
+                exit "$status"
+              fi
+
+              rollback_container=$(docker compose ps -q api || true)
+              if [ -z "$rollback_container" ]; then
+                echo "FATAL: rollback container was not found" >&2
+                exit "$status"
+              fi
+
+              rollback_image_id=$(docker inspect --format '{{.Image}}' "$rollback_container" || true)
+              if [ "$rollback_image_id" != "$OLD_IMAGE_ID" ]; then
+                echo "FATAL: rollback started $rollback_image_id instead of $OLD_IMAGE_ID" >&2
+                exit "$status"
+              fi
+
+              if ! wait_for_health ""; then
+                docker compose logs --no-color --tail=100 api || true
+                echo "FATAL: rollback image did not become healthy" >&2
+                exit "$status"
+              fi
+
+              echo "rollback succeeded" >&2
+              exit "$status"
+            }
+            trap rollback_on_failure EXIT
+
+            if ! API_IMAGE="$API_IMAGE" docker compose pull api; then
+              echo "failed to pull $API_IMAGE" >&2
+              exit 1
             fi
+
+            EXPECTED_IMAGE_ID=$(docker image inspect --format '{{.Id}}' "$API_IMAGE")
+            DEPLOY_STARTED=true
+            API_IMAGE="$API_IMAGE" docker compose up -d --no-deps api
+
+            NEW_CONTAINER=$(docker compose ps -q api || true)
+            if [ -z "$NEW_CONTAINER" ]; then
+              echo "new API container was not found" >&2
+              exit 1
+            fi
+
+            RUNNING_IMAGE_ID=$(docker inspect --format '{{.Image}}' "$NEW_CONTAINER")
+            if [ "$RUNNING_IMAGE_ID" != "$EXPECTED_IMAGE_ID" ]; then
+              echo "expected image $EXPECTED_IMAGE_ID, but started $RUNNING_IMAGE_ID" >&2
+              exit 1
+            fi
+
+            if ! wait_for_health "$EXPECTED_VERSION"; then
+              echo "healthcheck did not report version $EXPECTED_VERSION" >&2
+              exit 1
+            fi
+
+            DEPLOY_STARTED=false
+            trap - EXIT
+            echo "deployed $API_IMAGE"
+            docker inspect --format 'image={{.Config.Image}} id={{.Image}} status={{.State.Status}}' \
+              "$NEW_CONTAINER"

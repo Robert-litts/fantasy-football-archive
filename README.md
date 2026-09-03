@@ -154,4 +154,18 @@ docker compose build --no-cache api
 
 Release tags follow `vX.Y.Z`. The CI workflow runs on every push to `main` and
 `sleeper-integration` and on every pull request. Tagged releases additionally
-publish a Docker image and deploy it with a post-deploy healthcheck.
+rerun CI, publish an immutable Docker image, and wait for approval through the
+GitHub `production` environment before deploying. Production Compose must use
+the API image variable so the workflow can select the release tag exactly:
+
+```yaml
+services:
+  api:
+    image: ${API_IMAGE:-ghcr.io/robert-litts/fantasy-football-archive:latest}
+```
+
+The deploy job only recreates `api`, verifies the release version through the
+health endpoint, and rolls back to the previous local image on failure. Create
+and protect the `production` environment before publishing a release tag. Add
+required reviewers and scope `HOST`, `USERNAME`, `KEY`, `PORT`, and the SSH host
+key `FINGERPRINT` secret to that environment.

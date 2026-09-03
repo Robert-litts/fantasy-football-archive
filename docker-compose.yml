@@ -1,5 +1,6 @@
 services:
   api:
+    image: ${API_IMAGE:-ghcr.io/robert-litts/fantasy-football-archive:latest}
     build:
       context: .
       dockerfile: Dockerfile

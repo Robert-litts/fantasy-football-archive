@@ -21,7 +21,7 @@ import (
 	"github.com/rbcervilla/redisstore/v8"
 )
 
-const version = "1.0.0"
+var version = "development"
 
 type AuthConfig struct {
 	BaseCallbackURL string
