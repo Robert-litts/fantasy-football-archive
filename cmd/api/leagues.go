@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 
+	"github.com/Robert-litts/fantasy-football-archive/internal/archive"
 	"github.com/Robert-litts/fantasy-football-archive/internal/data"
 	"github.com/Robert-litts/fantasy-football-archive/internal/db"
 	"github.com/Robert-litts/fantasy-football-archive/internal/validator"
@@ -113,26 +114,16 @@ func (app *application) listLeaguesHandler(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-func defaultLeaguesParams() db.GetLeaguesAscParams {
-	return db.GetLeaguesAscParams{
-		Limit:       100,
-		Offset:      0,
-		Column9:     "id",
-		ID:          -1,
-		LeagueId:    -1,
-		Year:        -1,
-		TeamCount:   -1,
-		CurrentWeek: -1,
-		NflWeek:     -1,
+func (app *application) leagueArchivePage(r *http.Request) (archive.LeagueList, error) {
+	if app.archive == nil {
+		return archive.LeagueList{}, sql.ErrConnDone
 	}
-}
 
-func (app *application) getDefaultLeagues(r *http.Request) ([]db.League, error) {
-	return app.queries.GetLeaguesAsc(r.Context(), defaultLeaguesParams())
+	return app.archive.ListCanonicalLeagueSummaries(r.Context())
 }
 
 func (app *application) appLeaguesPageHandler(w http.ResponseWriter, r *http.Request) {
-	leagues, err := app.getDefaultLeagues(r)
+	page, err := app.leagueArchivePage(r)
 	if err != nil {
 		app.logger.Error("database error", "error", err)
 		app.serverErrorResponse(w, r, err)
@@ -140,7 +131,7 @@ func (app *application) appLeaguesPageHandler(w http.ResponseWriter, r *http.Req
 	}
 
 	err = templates.Base(
-		templates.Leagues(leagues),
+		templates.Leagues(page),
 	).Render(r.Context(), w)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
@@ -148,14 +139,14 @@ func (app *application) appLeaguesPageHandler(w http.ResponseWriter, r *http.Req
 }
 
 func (app *application) appLeaguesTableFragmentHandler(w http.ResponseWriter, r *http.Request) {
-	leagues, err := app.getDefaultLeagues(r)
+	page, err := app.leagueArchivePage(r)
 	if err != nil {
 		app.logger.Error("database error", "error", err)
 		app.serverErrorResponse(w, r, err)
 		return
 	}
 
-	err = templates.LeaguesTable(leagues).Render(r.Context(), w)
+	err = templates.LeaguesTable(page.Leagues).Render(r.Context(), w)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
@@ -163,108 +154,30 @@ func (app *application) appLeaguesTableFragmentHandler(w http.ResponseWriter, r 
 
 // leaguesPageHandler renders the leagues page for authenticated users.
 func (app *application) leaguesPageHandler(w http.ResponseWriter, r *http.Request) {
-	baseParams := db.GetLeaguesAscParams{
-		Limit:       100,
-		Offset:      0,
-		Column9:     "id",
-		ID:          -1,
-		LeagueId:    -1,
-		Year:        -1,
-		TeamCount:   -1,
-		CurrentWeek: -1,
-		NflWeek:     -1,
-	}
-	// Get leagues from database
-	leagues, err := app.queries.GetLeaguesAsc(r.Context(), baseParams)
+	page, err := app.leagueArchivePage(r)
 	if err != nil {
 		app.logger.Error("database error", "error", err)
 		app.serverErrorResponse(w, r, err)
 		return
 	}
 
-	// leaguesPage, err := app.queries.GetAllLeagues(r.Context())
-	// if err != nil {
-	// 	app.serverErrorResponse(w, r, err)
-	// 	return
-	// }
-
-	//app.logger.Info("Leagues fetched:", leagues)
-
-	// // Prepare template data
-	// data := map[string]interface{}{
-	// 	"Email":    session.Values["email"],
-	// 	"Name":     session.Values["name"],
-	// 	"Provider": session.Values["provider"],
-	// 	"Leagues":  leagues,
-	// }
-
-	// // Render the template
-	// err = app.renderTemplate(w, "leagues.tmpl", data)
-	// if err != nil {
-	// 	app.serverErrorResponse(w, r, err)
-	// }
-
-	// If it's an HTMX request, return just the table
-
-	// if r.Header.Get("HX-Request") == "true" {
-	// 	err := templates.LeaguePage(leaguesPage).Render(r.Context(), w)
-	// 	if err != nil {
-	// 		app.serverErrorResponse(w, r, err)
-	// 	}
-	// 	return
-	// }
-
 	if r.Header.Get("HX-Request") == "true" {
-		err := templates.LeaguesTable(leagues).Render(r.Context(), w)
+		err := templates.LeaguesTable(page.Leagues).Render(r.Context(), w)
 		if err != nil {
 			app.serverErrorResponse(w, r, err)
 		}
 		return
 	}
 
-	// Render the full page inside the base layout
 	err = templates.Base(
-		templates.Leagues(leagues),
+		templates.Leagues(page),
 	).Render(r.Context(), w)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
 }
 
-// leaguesRefreshHandler handles HTMX requests to refresh the leagues table
-func (app *application) leaguesRefreshHandler(w http.ResponseWriter, r *http.Request) {
-	baseParams := db.GetLeaguesAscParams{
-		Limit:       100,
-		Offset:      0,
-		Column9:     "id",
-		ID:          -1,
-		LeagueId:    -1,
-		Year:        -1,
-		TeamCount:   -1,
-		CurrentWeek: -1,
-		NflWeek:     -1,
-	}
-
-	leagues, err := app.queries.GetLeaguesAsc(r.Context(), baseParams)
-	if err != nil {
-		app.logger.Error("database error", "error", err)
-		if err == sql.ErrNoRows {
-			app.notFoundResponse(w, r)
-			return
-		}
-		app.serverErrorResponse(w, r, err)
-		return
-	}
-
-	data := map[string]interface{}{
-		"Leagues": leagues,
-	}
-
-	err = app.renderTemplate(w, "leagues-partial.tmpl", data)
-	if err != nil {
-		app.serverErrorResponse(w, r, err)
-	}
-}
+// leaguesRefreshHandler removed; was dead code.
 
 func (app *application) leaguesIndexHandler(w http.ResponseWriter, r *http.Request) {
 	component := templates.Index()

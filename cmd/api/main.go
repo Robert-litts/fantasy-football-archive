@@ -6,19 +6,22 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"sync"
 	"time"
 
+	"github.com/Robert-litts/fantasy-football-archive/internal/archive"
 	"github.com/Robert-litts/fantasy-football-archive/internal/db"
 	"github.com/Robert-litts/fantasy-football-archive/internal/mailer"
+	"github.com/Robert-litts/fantasy-football-archive/internal/sleeperdb"
 	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/sessions"
 	_ "github.com/lib/pq"
 	"github.com/rbcervilla/redisstore/v8"
 )
 
-const version = "1.0.0"
+var version = "development"
 
 type AuthConfig struct {
 	BaseCallbackURL string
@@ -35,17 +38,32 @@ type ProviderConfig struct {
 	ExtraConfig     map[string]string
 }
 
+type databaseConfig struct {
+	dsn          string
+	maxOpenConns int
+	maxIdleConns int
+	maxIdleTime  time.Duration
+}
+
+type sleeperQueryStore interface {
+	ListLeagueReports(context.Context) ([]sleeperdb.ListLeagueReportsRow, error)
+	ListTeamsByLeague(context.Context, int64) ([]sleeperdb.Team, error)
+	ListDraftPicksByLeague(context.Context, int64) ([]sleeperdb.ListDraftPicksByLeagueRow, error)
+	ListPlayerPositionsByESPNIDs(context.Context, []string) ([]sleeperdb.PlayerPositionByESPNID, error)
+	ListMatchupsByLeague(context.Context, int64) ([]sleeperdb.Matchup, error)
+	ListPlayoffBracketMatchupsByLeague(context.Context, int64) ([]sleeperdb.PlayoffBracketMatchup, error)
+}
+
+var _ sleeperQueryStore = (*sleeperdb.Queries)(nil)
+
 type config struct {
-	port         int
-	env          string
-	ownerAliases map[string]string
-	db           struct {
-		dsn          string
-		maxOpenConns int
-		maxIdleConns int
-		maxIdleTime  time.Duration
-	}
-	redis struct {
+	port                int
+	env                 string
+	ownerAliases        map[string]string
+	ownerIdentitiesFile string
+	db                  databaseConfig
+	sleeperDB           databaseConfig
+	redis               struct {
 		addr     string
 		password string
 		db       int
@@ -54,24 +72,29 @@ type config struct {
 		baseCallbackURL string
 		providers       map[string]ProviderConfig
 	}
-	sessionKey      string
-	sleeperLeagueID string
+	sessionKey          string
+	sleeperLeagueID     string
+	sleeperMainLeagueID string
 }
 
 type application struct {
-	config       config
-	logger       *slog.Logger
-	queries      *db.Queries
-	sessionStore sessions.Store
-	mailer       *mailer.Mailer
-	wg           sync.WaitGroup
-	authManager  *AuthManager
-	redisClient  *redis.Client
+	config         config
+	logger         *slog.Logger
+	queries        *db.Queries
+	sleeperQueries sleeperQueryStore
+	archive        *archive.Service
+	sessionStore   sessions.Store
+	mailer         *mailer.Mailer
+	wg             sync.WaitGroup
+	authManager    *AuthManager
+	redisClient    *redis.Client
+	draftTime      DraftTimeLookup
+	seasonResults  func(*http.Request) (archive.SeasonResultList, error)
 }
 
 func main() {
 	// Load environment variables
-	sleeperLeagueID, baseCallbackURL, port, env, ownerAliases, dsn, dbMaxOpenConns, dbMaxIdleConns, dbMaxIdleTime, sessionKey, sendGridKey, redisAddr, redisPassword, redisDB := loadEnvironment()
+	sleeperLeagueID, sleeperMainLeagueID, baseCallbackURL, port, env, ownerAliases, ownerIdentitiesFile, dsn, sleeperDSN, dbMaxOpenConns, dbMaxIdleConns, dbMaxIdleTime, sessionKey, sendGridKey, redisAddr, redisPassword, redisDB := loadEnvironment()
 
 	var cfg config
 
@@ -79,13 +102,20 @@ func main() {
 	flag.IntVar(&cfg.port, "port", port, "API Server Port")
 	flag.StringVar(&cfg.env, "env", env, "Environment (development|staging|production)")
 	flag.StringVar(&cfg.db.dsn, "db-dsn", dsn, "PostgreSQL DSN")
+	flag.StringVar(&cfg.sleeperDB.dsn, "sleeper-db-dsn", sleeperDSN, "Sleeper archive PostgreSQL DSN")
 	flag.IntVar(&cfg.db.maxOpenConns, "db-max-open-conns", dbMaxOpenConns, "PostgreSQL max open connections")
 	flag.IntVar(&cfg.db.maxIdleConns, "db-max-idle-conns", dbMaxIdleConns, "PostgreSQL max idle connections")
 	flag.DurationVar(&cfg.db.maxIdleTime, "db-max-idle-time", dbMaxIdleTime, "PostgreSQL max connection idle time")
 	flag.Parse()
 
+	cfg.sleeperDB.maxOpenConns = cfg.db.maxOpenConns
+	cfg.sleeperDB.maxIdleConns = cfg.db.maxIdleConns
+	cfg.sleeperDB.maxIdleTime = cfg.db.maxIdleTime
+
 	cfg.sleeperLeagueID = sleeperLeagueID
+	cfg.sleeperMainLeagueID = sleeperMainLeagueID
 	cfg.ownerAliases = ownerAliases
+	cfg.ownerIdentitiesFile = ownerIdentitiesFile
 	cfg.redis.addr = redisAddr
 	cfg.redis.password = redisPassword
 	cfg.redis.db = redisDB
@@ -129,7 +159,7 @@ func main() {
 		Secure:   env == "production", // Only secure in production
 	})
 
-	dbConn, err := openDB(cfg)
+	dbConn, err := openDB(cfg.db)
 	if err != nil {
 		logger.Error(err.Error())
 		os.Exit(1)
@@ -140,18 +170,51 @@ func main() {
 	logger.Info("database connection pool established")
 
 	queries := db.New(dbConn)
+	var sleeperQueries sleeperQueryStore
+	if cfg.sleeperDB.dsn != "" {
+		sleeperDBConn, err := openDB(cfg.sleeperDB)
+		if err != nil {
+			logger.Error(err.Error())
+			os.Exit(1)
+		}
+		defer sleeperDBConn.Close()
+
+		logger.Info("sleeper database connection pool established")
+		sleeperQueries = sleeperdb.New(sleeperDBConn)
+	} else {
+		logger.Warn("sleeper database URL not configured; sleeper archive views will be unavailable")
+	}
+
+	if err := ensureOwnerIdentitiesFile(context.Background(), cfg.ownerIdentitiesFile, queries, sleeperQueries, logger); err != nil {
+		logger.Error("failed to ensure owner identities file", "error", err, "path", cfg.ownerIdentitiesFile)
+		os.Exit(1)
+	}
+	identityAliases, err := parseOwnerIdentitiesFile(cfg.ownerIdentitiesFile)
+	if err != nil {
+		logger.Error("failed to load owner identities file", "error", err, "path", cfg.ownerIdentitiesFile)
+		os.Exit(1)
+	}
+	cfg.ownerAliases, err = mergeOwnerAliases(identityAliases, cfg.ownerAliases)
+	if err != nil {
+		logger.Error("failed to merge owner aliases", "error", err)
+		os.Exit(1)
+	}
 
 	cfg.sessionKey = sessionKey
 
 	app := &application{
-		config:       cfg,
-		logger:       logger,
-		queries:      queries,
-		sessionStore: store,
-		mailer:       mailer.New(sendGridKey, "FFArchive <robert@litts.org>", logger),
-		authManager:  NewAuthManager(),
-		redisClient:  redisClient,
+		config:         cfg,
+		logger:         logger,
+		queries:        queries,
+		sleeperQueries: sleeperQueries,
+		archive:        archive.New(queries, queries, sleeperQueries, sleeperQueries, cfg.ownerAliases, cfg.sleeperMainLeagueID),
+		sessionStore:   store,
+		mailer:         mailer.New(sendGridKey, "FFArchive <robert@litts.org>", logger),
+		authManager:    NewAuthManager(),
+		redisClient:    redisClient,
+		draftTime:      NewDraftTimeLookup(logger),
 	}
+	app.seasonResults = app.seasonResultsPage
 
 	// Initialize the auth providers
 	ctx := context.Background()
@@ -170,17 +233,17 @@ func main() {
 	}
 }
 
-func openDB(cfg config) (*sql.DB, error) {
+func openDB(cfg databaseConfig) (*sql.DB, error) {
 	// Use sql.Open() to create an empty connection pool, using the DSN from the config
 	// struct.
-	db, err := sql.Open("postgres", cfg.db.dsn)
+	db, err := sql.Open("postgres", cfg.dsn)
 	if err != nil {
 		return nil, err
 	}
 
-	db.SetMaxOpenConns(cfg.db.maxOpenConns)
-	db.SetMaxIdleConns(cfg.db.maxIdleConns)
-	db.SetConnMaxIdleTime(cfg.db.maxIdleTime)
+	db.SetMaxOpenConns(cfg.maxOpenConns)
+	db.SetMaxIdleConns(cfg.maxIdleConns)
+	db.SetConnMaxIdleTime(cfg.maxIdleTime)
 
 	// Create a context with a 5-second timeout deadline.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

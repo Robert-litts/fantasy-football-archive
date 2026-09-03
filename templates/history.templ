@@ -1,0 +1,73 @@
+package templates
+
+import (
+	"github.com/Robert-litts/fantasy-football-archive/internal/archive"
+	"strconv"
+)
+
+templ SeasonResults(page archive.SeasonResultList) {
+	<section class="mt-8">
+		<div class="mx-auto max-w-6xl">
+			<div class="overflow-hidden rounded-3xl border border-amber-300/20 bg-slate-950 shadow-2xl shadow-black/30">
+				<div class="relative border-b border-slate-800 bg-[radial-gradient(circle_at_top_left,_rgba(251,191,36,0.24),_transparent_32%),linear-gradient(135deg,_rgba(15,23,42,1),_rgba(17,24,39,0.96))] px-6 py-8">
+					<p class="text-xs font-black uppercase tracking-[0.35em] text-amber-300">Championship history</p>
+					<h1 class="mt-3 text-4xl font-black tracking-tight text-white">Season Results</h1>
+					<p class="mt-3 max-w-3xl text-sm leading-6 text-slate-300">
+						A canonical timeline of the league across ESPN and Sleeper, excluding side Sleeper leagues from the long-term archive story.
+					</p>
+					<div class="mt-5 inline-flex rounded-full border border-amber-300/30 bg-amber-300/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.22em] text-amber-100">
+						{ strconv.Itoa(len(page.Seasons)) } seasons loaded
+					</div>
+				</div>
+				if page.SleeperMessage != "" {
+					<div class="mx-6 mt-6 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+						{ page.SleeperMessage }
+					</div>
+				}
+				<div class="divide-y divide-slate-800">
+					for _, season := range page.Seasons {
+						<article class="grid gap-4 px-6 py-5 transition-colors hover:bg-slate-900/70 md:grid-cols-[7rem_1fr_1fr] md:items-center">
+							<div>
+								<p class="text-3xl font-black text-white">{ strconv.Itoa(int(season.Season)) }</p>
+								<p class="mt-1 text-xs font-bold uppercase tracking-[0.22em] text-slate-500">{ string(season.Provider) }</p>
+							</div>
+							<div>
+								<p class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+									{ season.LeagueName } · { strconv.Itoa(int(season.TeamCount)) } teams
+								</p>
+								<h2 class="mt-1 text-xl font-extrabold text-amber-200">
+									if season.Champion != "" {
+										{ season.Champion }
+										if season.ChampionOwner != "" {
+											<span class="text-sm font-medium text-amber-200/60">({ season.ChampionOwner })</span>
+										}
+									} else {
+										<span class="text-slate-500">Champion not recorded</span>
+									}
+								</h2>
+							</div>
+							<div class="rounded-2xl border border-slate-800 bg-slate-900/60 px-4 py-3">
+								<p class="text-xs font-bold uppercase tracking-[0.22em] text-slate-500">Runner-up</p>
+								<p class="mt-1 text-sm font-semibold text-slate-200">
+									if season.RunnerUp != "" {
+										{ season.RunnerUp }
+										if season.RunnerUpOwner != "" {
+											<span class="text-xs font-normal text-slate-500">({ season.RunnerUpOwner })</span>
+										}
+									} else {
+										<span class="text-slate-500">Not recorded</span>
+									}
+								</p>
+							</div>
+						</article>
+					}
+					if len(page.Seasons) == 0 {
+						<div class="px-6 py-12 text-center text-sm text-slate-500">
+							No season results found.
+						</div>
+					}
+				</div>
+			</div>
+		</div>
+	</section>
+}

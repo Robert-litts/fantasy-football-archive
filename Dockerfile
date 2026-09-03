@@ -5,8 +5,9 @@ WORKDIR /app
 # Install required tools for your Makefile
 RUN apk add --no-cache make curl nodejs npm
 
-# Install templ
-RUN go install github.com/a-h/templ/cmd/templ@latest
+# Install pinned templ and sqlc versions
+RUN go install github.com/a-h/templ/cmd/templ@v0.3.943
+RUN go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0
 
 # Copy Go dependencies first
 COPY go.mod go.sum ./
@@ -17,7 +18,8 @@ COPY . .
 
 # Use your Makefile to build everything
 RUN make assets/install
-RUN make build/api
+ARG VERSION=development
+RUN make build/api VERSION=${VERSION}
 
 # Final stage
 FROM scratch

@@ -38,8 +38,10 @@ SELECT
     "m".*,
     COALESCE("ht"."teamName", '') as "homeTeamName",
     COALESCE("ht"."owners", '') as "homeTeamOwners",
+    COALESCE("ht"."finalStanding", 0) as "homeFinalStanding",
     COALESCE("at"."teamName", '') as "awayTeamName",
     COALESCE("at"."owners", '') as "awayTeamOwners",
+    COALESCE("at"."finalStanding", 0) as "awayFinalStanding",
     "l"."year" as "leagueYear",
     "l"."id" as "leagueId"
 FROM "matchups" "m"
@@ -48,4 +50,5 @@ LEFT JOIN "teams" "at" ON "m"."away_team_id" = "at"."id"
 JOIN "leagues" "l" ON "l"."id" = $1
 WHERE ("ht"."league_id" = $1 OR "m"."home_team_id" IS NULL)
 AND ("at"."league_id" = $1 OR "m"."away_team_id" IS NULL)
+AND ("m"."home_team_id" IS NOT NULL OR "m"."away_team_id" IS NOT NULL)
 ORDER BY "m"."week" ASC;

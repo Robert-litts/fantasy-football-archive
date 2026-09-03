@@ -1,247 +1,307 @@
 package templates
 
 import (
-	"fmt"
-	"github.com/Robert-litts/fantasy-football-archive/internal/db"
+	"github.com/Robert-litts/fantasy-football-archive/internal/archive"
+	matchupsview "github.com/Robert-litts/fantasy-football-archive/internal/matchupsview"
 	"strconv"
 )
 
-templ MatchupsTable(leagues []db.GetAllLeaguesRow, selectedLeagueID int, matchups []db.GetMatchupsByLeagueIdRow, activeWeek int32) {
+templ Matchups(page matchupsview.PageData) {
+	<div class="min-h-screen px-4 py-8">
+		<div class="mx-auto max-w-7xl">
+			<div class="rounded-2xl border border-slate-700 bg-slate-950/80 p-6 shadow-2xl shadow-black/20">
+				<div class="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+					<div>
+						<p class="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">Archive view</p>
+						<h1 class="text-3xl font-bold text-white">Fantasy Football Matchups</h1>
+						<p class="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+							Week-by-week scoreboard history across ESPN and Sleeper, normalized into one clean season browser.
+						</p>
+						<div class="mt-4 flex flex-wrap gap-2">
+							<span class="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-slate-300">
+								ESPN 2013-2021
+							</span>
+							<span class="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-slate-300">
+								Sleeper 2022-present
+							</span>
+							if page.SleeperAvailable {
+								<span class="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-200">
+									Sleeper archive connected
+								</span>
+							} else {
+								<span class="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-amber-100">
+									Sleeper archive unavailable
+								</span>
+							}
+						</div>
+					</div>
+					<div class="rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
+						{ strconv.Itoa(len(page.Leagues)) } seasons loaded
+					</div>
+				</div>
+				<div id="matchups-content">
+					@MatchupsContent(page)
+				</div>
+				<script>
+					if (!window.__matchupsWeekTabsActiveBound) {
+						window.__matchupsWeekTabsActiveBound = true;
+						document.body.addEventListener("click", function (event) {
+							var button = event.target.closest("[data-matchups-week-tab]");
+							if (!button) {
+								return;
+							}
+							var tabs = button.closest("#matchups-week-tabs");
+							if (!tabs) {
+								return;
+							}
+							tabs.querySelectorAll("[data-matchups-week-tab]").forEach(function (tab) {
+								var isActive = tab === button;
+								tab.className = isActive ? tab.dataset.activeClass : tab.dataset.inactiveClass;
+								tab.setAttribute("aria-selected", isActive ? "true" : "false");
+							});
+							var label = document.getElementById("matchups-active-week-label");
+							if (label) {
+								label.textContent = button.dataset.weekLabel;
+							}
+						});
+					}
+				</script>
+			</div>
+		</div>
+	</div>
+}
+
+func matchupsLeagueSelectionKey(league archive.LeagueSummary) string {
+	return string(league.Provider) + ":" + strconv.FormatInt(league.ID, 10)
+}
+
+templ MatchupsContent(page matchupsview.PageData) {
 	<div class="space-y-6">
-		<div class="mb-6">
-			<label for="league-select" class="block text-sm font-medium text-gray-300 mb-2">Select League</label>
-			<select
-				id="league-select"
-				hx-get={ fmt.Sprintf("/app/fragments/matchups-week/%d", activeWeek) }
-				hx-target="#matchups-container"
-				hx-swap="innerHTML"
-				hx-trigger="change"
-				name="id"
-				class="bg-gray-700 border border-gray-600 text-gray-200 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-50 p-2.5"
-			>
-				for _, league := range leagues {
-					<option
-						value={ strconv.Itoa(int(league.ID)) }
-						selected?={ league.ID == int32(selectedLeagueID) }
-					>
-						Season { strconv.Itoa(int(league.Year)) } - League { strconv.Itoa(int(league.ID)) }
-					</option>
-				}
-			</select>
-		</div>
-		<div id="matchups-container">
-			@tabNavigation(matchups, activeWeek)
-			@tabContent(matchups)
+		@LeagueMatchupSelector(page.Leagues, page.SelectedLeagueKey)
+		if page.SleeperMessage != "" {
+			<div class="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+				{ page.SleeperMessage }
+			</div>
+		}
+		<div class="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60 shadow-xl">
+			<div class="border-b border-slate-800 px-5 py-4">
+				<div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+					<div>
+						<p class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Season detail</p>
+						if page.SelectedLeague.Name != "" {
+							<h2 class="mt-1 text-2xl font-bold text-white">{ page.SelectedLeague.Name }</h2>
+							<p class="mt-1 text-sm text-slate-400">
+								{ string(page.SelectedLeague.Provider) } · Season { strconv.Itoa(int(page.SelectedLeague.Season)) } · { strconv.Itoa(len(page.Matchups)) } matchups loaded
+							</p>
+						} else {
+							<h2 class="mt-1 text-2xl font-bold text-white">No season selected</h2>
+							<p class="mt-1 text-sm text-slate-400">Choose a league to load weekly matchup history.</p>
+						}
+					</div>
+					<div id="matchups-active-week-label" class="rounded-full border border-slate-700 bg-slate-950 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
+						Week { strconv.Itoa(int(page.ActiveWeek)) }
+					</div>
+				</div>
+			</div>
+			<div id="matchups-container" class="p-5">
+				@WeekContent(page)
+			</div>
 		</div>
 	</div>
 }
 
-templ WeekContent(matchups []db.GetMatchupsByLeagueIdRow, activeWeek int32) {
-	@tabNavigation(matchups, activeWeek)
-	@WeekTable(FilterMatchupsByWeek(matchups, activeWeek), int(getLastWeekOfSeason(matchups)))
-}
-
-templ tabContent(matchups []db.GetMatchupsByLeagueIdRow) {
-	<div id="week-content">
-		@WeekTable(FilterMatchupsByWeek(matchups, getUniqueWeeks(matchups)[0]), int(getLastWeekOfSeason(matchups)))
-	</div>
-}
-
-templ WeekTable(weekMatchups []db.GetMatchupsByLeagueIdRow, lastWeek int) {
-	<table class="min-w-full divide-y divide-gray-700 bg-gray-800 border border-gray-700 rounded-lg overflow-hidden">
-		<thead>
-			<tr>
-				<th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider border-b border-gray-700">Home Team</th>
-				<th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider border-b border-gray-700">Home Score</th>
-				<th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider border-b border-gray-700">Away Score</th>
-				<th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider border-b border-gray-700">Away Team</th>
-				<th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider border-b border-gray-700">Type</th>
-			</tr>
-		</thead>
-		<tbody class="bg-gray-900 divide-y divide-gray-700">
-			if len(weekMatchups) > 0 {
-				for _, matchup := range weekMatchups {
-					<tr class="hover:bg-gray-800 transition-colors">
-						<td
-							class={ "px-6 py-4 whitespace-nowrap text-sm text-gray-300 border-x border-gray-700", }
-						>
-							<div class="flex items-center gap-2">
-								if !matchup.HomeTeamID.Valid {
-									<span>BYE</span>
-								} else {
-									{ matchup.HomeTeamName }
-									if matchup.HomeScore > matchup.AwayScore && isChampionshipMatch(matchup, lastWeek) {
-										<span class="text-yellow-500">🏆</span>
-									}
-								}
-							</div>
-							if matchup.HomeTeamID.Valid {
-								<div class="text-xs text-gray-400">{ matchup.HomeTeamOwners }</div>
-							}
-						</td>
-						<td
-							class={ "px-6 py-4 whitespace-nowrap text-sm text-gray-300 border-x border-gray-700",
-                            templ.KV("bg-green-900/50", matchup.HomeScore > matchup.AwayScore && !isChampionshipMatch(matchup, lastWeek) && matchup.HomeTeamID.Valid && matchup.AwayTeamID.Valid),
-    templ.KV("bg-red-900/50", matchup.HomeScore < matchup.AwayScore && matchup.HomeTeamID.Valid && matchup.AwayTeamID.Valid),
-    templ.KV("bg-yellow-500/50", matchup.HomeScore > matchup.AwayScore && isChampionshipMatch(matchup, lastWeek) && matchup.HomeTeamID.Valid && matchup.AwayTeamID.Valid),
-    templ.KV("bg-gray-800", !matchup.HomeTeamID.Valid || !matchup.AwayTeamID.Valid) }
-						>
-							if !matchup.HomeTeamID.Valid || !matchup.AwayTeamID.Valid {
-								<span class="bg-grey-500/50">-</span>
-							} else {
-								{ strconv.FormatFloat(matchup.HomeScore, 'f', 2, 64) }
-							}
-						</td>
-						<td
-							class={ "px-6 py-4 whitespace-nowrap text-sm text-gray-300 border-x border-gray-700",
-                            templ.KV("bg-green-900/50", matchup.AwayScore > matchup.HomeScore && !isChampionshipMatch(matchup, lastWeek) && matchup.HomeTeamID.Valid && matchup.AwayTeamID.Valid),
-    templ.KV("bg-red-900/50", matchup.AwayScore < matchup.HomeScore && matchup.HomeTeamID.Valid && matchup.AwayTeamID.Valid),
-    templ.KV("bg-yellow-500/50", matchup.AwayScore > matchup.HomeScore && isChampionshipMatch(matchup, lastWeek) && matchup.HomeTeamID.Valid && matchup.AwayTeamID.Valid),
-    templ.KV("bg-gray-800", !matchup.HomeTeamID.Valid || !matchup.AwayTeamID.Valid) }
-						>
-							if !matchup.HomeTeamID.Valid || !matchup.AwayTeamID.Valid {
-								<span class="bg-grey-500/50">-</span>
-							} else {
-								{ strconv.FormatFloat(matchup.AwayScore, 'f', 2, 64) }
-							}
-						</td>
-						<td
-							class={ "px-6 py-4 whitespace-nowrap text-sm text-gray-300 border-x border-gray-700", }
-						>
-							<div class="flex items-center gap-2">
-								if !matchup.AwayTeamID.Valid {
-									<span>BYE</span>
-								} else {
-									{ matchup.AwayTeamName }
-									if matchup.AwayScore > matchup.HomeScore && isChampionshipMatch(matchup, lastWeek) {
-										<span class="text-yellow-500">🏆</span>
-									}
-								}
-							</div>
-							if matchup.AwayTeamID.Valid {
-								<div class="text-xs text-gray-400">{ matchup.AwayTeamOwners }</div>
-							}
-						</td>
-						<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300 border-x border-gray-700">
-							if !matchup.HomeTeamID.Valid || !matchup.AwayTeamID.Valid {
-								<span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-700 text-gray-300">BYE Week</span>
-							} else if matchup.IsPlayoff {
-								if isChampionshipMatch(matchup, lastWeek) {
-									<span class="px-2 py-1 text-xs font-medium rounded-full bg-yellow-900/50 text-yellow-400">Championship!</span>
-								} else if matchup.MatchupType == "WINNERS_BRACKET" {
-									<span class="px-2 py-1 text-xs font-medium rounded-full bg-blue-900 text-white-200">Playoffs Round { strconv.Itoa(playoffRound(int(matchup.Week), lastWeek)) }</span>
-								} else {
-									<span class="px-2 py-1 text-xs font-medium rounded-full bg-red-900 text-red-200">{ matchup.MatchupType }</span>
-								}
-							} else {
-								<span>Regular Season</span>
-							}
-						</td>
-					</tr>
-				}
+templ LeagueMatchupSelector(leagues []archive.LeagueSummary, selectedLeagueKey string) {
+	<div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 shadow-inner shadow-black/10">
+		<label for="matchups-league-select" class="block text-xs font-bold uppercase tracking-[0.22em] text-slate-500">Select season</label>
+		<select
+			id="matchups-league-select"
+			hx-get="/app/fragments/matchups-table"
+			hx-target="#matchups-content"
+			hx-swap="innerHTML"
+			hx-trigger="change"
+			name="id"
+			class="mt-3 w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm font-semibold text-slate-100 outline-none transition focus:border-amber-300/50 focus:ring-2 focus:ring-amber-300/20 sm:w-auto"
+		>
+			for _, league := range leagues {
+				<option
+					value={ matchupsLeagueSelectionKey(league) }
+					selected?={ matchupsLeagueSelectionKey(league) == selectedLeagueKey }
+				>
+					{ strconv.Itoa(int(league.Season)) } · { string(league.Provider) } · { league.Name }
+				</option>
 			}
-		</tbody>
-	</table>
+		</select>
+	</div>
 }
 
-func getUniqueWeeks(matchups []db.GetMatchupsByLeagueIdRow) []int32 {
-	weekMap := make(map[int32]bool)
-	var weeks []int32
-	for _, matchup := range matchups {
-		if !weekMap[matchup.Week] {
-			weekMap[matchup.Week] = true
-			weeks = append(weeks, matchup.Week)
-		}
+templ WeekContent(page matchupsview.PageData) {
+	<div class="space-y-5">
+		@MatchupWeekTabs(page)
+		<div id="week-table-container">
+			@WeekTable(page.SelectedWeekRows)
+		</div>
+	</div>
+}
+
+templ MatchupWeekTabs(page matchupsview.PageData) {
+	if len(page.Weeks) > 0 {
+		<div id="matchups-week-tabs" class="flex gap-2 overflow-x-auto border-b border-slate-800 pb-3" role="tablist">
+			for _, week := range page.Weeks {
+				@matchupWeekTab(week, page.ActiveWeek, page.SelectedLeagueKey)
+			}
+		</div>
 	}
-	return weeks
 }
 
-func FilterMatchupsByWeek(matchups []db.GetMatchupsByLeagueIdRow, week int32) []db.GetMatchupsByLeagueIdRow {
-	var filtered []db.GetMatchupsByLeagueIdRow
-	for _, matchup := range matchups {
-		if matchup.Week == week {
-			filtered = append(filtered, matchup)
-		}
-	}
-	return filtered
-}
-
-templ tabButton(week int32, activeWeek int32, isPlayoff bool, isChampionship bool, leagueID int) {
+templ matchupWeekTab(week matchupsview.WeekTab, activeWeek int32, selectedLeagueKey string) {
 	<button
-		class={
-			"px-4 py-2 text-sm rounded-t-lg transition-colors border-2 border-transparent flex items-center gap-2",
-			templ.KV("bg-gray-800 text-white border-blue-500 !border-b-0", week == activeWeek),
-			templ.KV("text-gray-400 hover:text-white hover:bg-gray-800", week != activeWeek),
-			templ.KV("font-bold", isPlayoff),
-			templ.KV("text-yellow-400", isPlayoff && week != activeWeek),
-			templ.KV("bg-gradient-to-b from-gray-800 to-gray-900", isPlayoff),
-		}
-		hx-get={ fmt.Sprintf("/app/fragments/matchups-week/%d?id=%d", week, leagueID) }
-		hx-target="#matchups-container"
+		class={ matchupWeekTabClass(week.Week == activeWeek) }
+		hx-get={ "/app/fragments/matchups-week/" + strconv.Itoa(int(week.Week)) + "?id=" + selectedLeagueKey }
+		hx-target="#week-table-container"
+		hx-swap="innerHTML"
 		hx-trigger="click"
+		data-matchups-week-tab="true"
+		data-week-label={ "Week " + strconv.Itoa(int(week.Week)) }
+		data-active-class={ matchupWeekTabClass(true) }
+		data-inactive-class={ matchupWeekTabClass(false) }
 		role="tab"
-		aria-selected={ strconv.FormatBool(week == activeWeek) }
-		aria-controls={ "week-" + strconv.Itoa(int(week)) }
+		aria-selected={ strconv.FormatBool(week.Week == activeWeek) }
 	>
-		Week { strconv.Itoa(int(week)) }
-		if isChampionship {
-			<svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 text-yellow-500" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor">
-				<path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 14.25a7.454 7.454 0 0 0 .981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 0 0 7.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 0 0 2.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 0 1 2.916.52 6.003 6.003 0 0 1-5.395 4.972m0 0a6.726 6.726 0 0 1-2.749 1.35m0 0a6.772 6.772 0 0 1-3.044 0"></path>
-			</svg>
+		Week { strconv.Itoa(int(week.Week)) }
+		if week.IsChampionship {
+			<span class="rounded-full bg-amber-300/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-amber-100">Title</span>
+		} else if week.IsPlayoff {
+			<span class="rounded-full bg-sky-400/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-sky-200">Playoffs</span>
 		}
 	</button>
 }
 
-templ tabNavigation(matchups []db.GetMatchupsByLeagueIdRow, activeWeek int32) {
-	<div class="flex space-x-1 border-b border-gray-700 mb-4" role="tablist">
-		for _, matchup := range getUniqueWeeks(matchups) {
-			@tabButton(
-				matchup,
-				activeWeek,
-				isPlayoffWeek(matchups, matchup),
-				isChampionshipWeek(matchups, matchup),
-				int(matchups[0].LeagueId),
-			)
-		}
+func matchupWeekTabClass(active bool) string {
+	base := "flex shrink-0 items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition"
+	if active {
+		return base + " border-amber-300/50 bg-amber-300/10 text-amber-100"
+	}
+	return base + " border-slate-700 bg-slate-950 text-slate-400 hover:border-slate-500 hover:text-white"
+}
+
+templ WeekTable(weekMatchups []matchupsview.MatchupRow) {
+	<div class="overflow-x-auto rounded-2xl border border-slate-800">
+		<table class="min-w-full divide-y divide-slate-800 bg-slate-950">
+			<thead class="bg-slate-900/80">
+				<tr>
+					<th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Home</th>
+					<th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Score</th>
+					<th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Score</th>
+					<th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Away</th>
+					<th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Type</th>
+				</tr>
+			</thead>
+			<tbody class="divide-y divide-slate-800 bg-slate-950">
+				for _, matchup := range weekMatchups {
+					<tr class="transition-colors hover:bg-slate-900/70">
+						<td class="px-5 py-4 text-sm text-slate-200">
+							<div class={ teamNameClass(matchup.HomePresent, matchup.HomeWinner, matchup.IsChampionship, matchup.AwayWinner) }>
+								{ matchup.HomeTeamName }
+							</div>
+							if matchup.HomeOwner != "" {
+								<div class="mt-1 text-xs text-slate-500">{ matchup.HomeOwner }</div>
+							}
+						</td>
+						<td class={ scoreCellClass(matchup.HomePresent, matchup.AwayPresent, matchup.HomeWinner, matchup.IsChampionship) }>
+							if matchup.HomePresent && matchup.AwayPresent {
+								<span class="inline-flex items-center gap-2">
+									{ matchup.HomeScore }
+									if matchup.HomeWinner && matchup.IsChampionship {
+										@trophyIcon("h-4 w-4 text-yellow-200 drop-shadow-[0_0_6px_rgba(250,204,21,0.55)]")
+									}
+									if matchup.IsChampionship && matchup.AwayWinner && !matchup.HomeWinner {
+										@trophyIcon("h-4 w-4 text-slate-200 drop-shadow-[0_0_5px_rgba(226,232,240,0.45)]")
+									}
+								</span>
+							} else {
+								-
+							}
+						</td>
+						<td class={ scoreCellClass(matchup.AwayPresent, matchup.HomePresent, matchup.AwayWinner, matchup.IsChampionship) }>
+							if matchup.HomePresent && matchup.AwayPresent {
+								<span class="inline-flex items-center gap-2">
+									{ matchup.AwayScore }
+									if matchup.AwayWinner && matchup.IsChampionship {
+										@trophyIcon("h-4 w-4 text-yellow-200 drop-shadow-[0_0_6px_rgba(250,204,21,0.55)]")
+									}
+									if matchup.IsChampionship && matchup.HomeWinner && !matchup.AwayWinner {
+										@trophyIcon("h-4 w-4 text-slate-200 drop-shadow-[0_0_5px_rgba(226,232,240,0.45)]")
+									}
+								</span>
+							} else {
+								-
+							}
+						</td>
+						<td class="px-5 py-4 text-sm text-slate-200">
+							<div class={ teamNameClass(matchup.AwayPresent, matchup.AwayWinner, matchup.IsChampionship, matchup.HomeWinner) }>
+								{ matchup.AwayTeamName }
+							</div>
+							if matchup.AwayOwner != "" {
+								<div class="mt-1 text-xs text-slate-500">{ matchup.AwayOwner }</div>
+							}
+						</td>
+						<td class="whitespace-nowrap px-5 py-4 text-sm text-slate-300">
+							<span class={
+								"rounded-full border px-3 py-1 text-xs font-semibold",
+								templ.KV("border-amber-300/40 bg-amber-300/10 text-amber-100", matchup.IsChampionship),
+								templ.KV("border-sky-400/30 bg-sky-400/10 text-sky-200", matchup.IsPlayoff && !matchup.IsChampionship),
+								templ.KV("border-slate-700 bg-slate-900 text-slate-300", !matchup.IsPlayoff && !matchup.IsChampionship),
+							}>
+								{ matchup.TypeLabel }
+							</span>
+						</td>
+					</tr>
+				}
+				if len(weekMatchups) == 0 {
+					<tr>
+						<td colspan="5" class="px-5 py-8 text-center text-sm text-slate-500">
+							No matchups found for this week.
+						</td>
+					</tr>
+				}
+			</tbody>
+		</table>
 	</div>
 }
 
-func getLastWeekOfSeason(matchups []db.GetMatchupsByLeagueIdRow) int32 {
-	lastWeek := int32(0)
-	for _, m := range matchups {
-		if m.Week > lastWeek {
-			lastWeek = m.Week
-		}
-	}
-	return lastWeek
+templ trophyIcon(className string) {
+	<svg aria-hidden="true" class={ className } viewBox="0 0 24 24" fill="currentColor">
+		<path d="M7 3h10v2h3a1 1 0 0 1 1 1v2a5 5 0 0 1-5 5h-.21A5.99 5.99 0 0 1 13 15.92V19h3v2H8v-2h3v-3.08A5.99 5.99 0 0 1 8.21 13H8a5 5 0 0 1-5-5V6a1 1 0 0 1 1-1h3V3Zm0 4H5v1a3 3 0 0 0 2.17 2.88A6.17 6.17 0 0 1 7 9.5V7Zm12 0h-2v2.5c0 .47-.05.93-.16 1.38A3 3 0 0 0 19 8V7Z"></path>
+	</svg>
 }
 
-func isPlayoffWeek(matchups []db.GetMatchupsByLeagueIdRow, week int32) bool {
-	for _, m := range matchups {
-		if m.Week == week && m.IsPlayoff {
-			return true
-		}
+func scoreCellClass(primaryPresent, opponentPresent, isWinner, isChampionship bool) string {
+	base := "whitespace-nowrap px-5 py-4 text-sm font-semibold text-slate-300"
+	if !primaryPresent || !opponentPresent {
+		return base + " bg-slate-900/60 text-slate-500"
 	}
-	return false
+	if isWinner && isChampionship {
+		return base + " bg-yellow-300/25 text-yellow-50 ring-1 ring-inset ring-yellow-200/40 shadow-[inset_0_0_18px_rgba(250,204,21,0.18)]"
+	}
+	if isChampionship {
+		return base + " bg-slate-300/15 text-slate-100 ring-1 ring-inset ring-slate-100/25 shadow-[inset_0_0_16px_rgba(226,232,240,0.12)]"
+	}
+	if isWinner {
+		return base + " bg-teal-400/15 text-teal-50 ring-1 ring-inset ring-teal-200/15"
+	}
+	return base + " bg-slate-900/70 text-slate-400"
 }
 
-func isChampionshipWeek(matchups []db.GetMatchupsByLeagueIdRow, week int32) bool {
-	if !isPlayoffWeek(matchups, week) {
-		return false
+func teamNameClass(present, isWinner, isChampionship, opponentWinner bool) string {
+	base := "font-semibold"
+	if !present {
+		return base + " text-slate-500"
 	}
-	return week == getLastWeekOfSeason(matchups)
-}
-
-func isChampionshipMatch(matchup db.GetMatchupsByLeagueIdRow, lastWeek int) bool {
-	return matchup.Week == int32(lastWeek) && matchup.MatchupType == "WINNERS_BRACKET"
-}
-
-func playoffRound(currentWeek, lastWeek int) int {
-	if lastWeek-currentWeek == 2 {
-		return 1
+	if isChampionship && isWinner {
+		return base + " text-yellow-50 drop-shadow-[0_0_8px_rgba(250,204,21,0.42)]"
 	}
-	if lastWeek-currentWeek == 1 {
-		return 2
+	if isChampionship && opponentWinner {
+		return base + " text-slate-100 drop-shadow-[0_0_7px_rgba(226,232,240,0.32)]"
 	}
-	return 0
+	return base + " text-white"
 }

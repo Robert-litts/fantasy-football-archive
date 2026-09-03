@@ -11,20 +11,22 @@ import (
 
 func TestStatsTemplateRendersTabbedSectionsAndFixtureData(t *testing.T) {
 	pageData := appstats.PageData{
-		SeasonCount:  2,
-		OwnerCount:   4,
-		MatchupCount: 18,
+		SeasonCount:      2,
+		OwnerCount:       4,
+		MatchupCount:     18,
+		SleeperAvailable: false,
+		SleeperMessage:   "Sleeper archive is temporarily unavailable",
 		HighlightCards: []appstats.HighlightCard{
 			{Label: "Highest weekly score", Value: 160, ValueText: "points", Owner: "Alice", TeamName: "Alice Alpha", Opponent: "Dave Delta", Year: 2023, Week: 3, Detail: "Regular season"},
 		},
 		OwnerTotals: []appstats.OwnerTotal{
-			{Rank: 1, Owner: "Alice", Seasons: 2, Wins: 20, Losses: 8, Ties: 0, Titles: 1, PlayoffAppearances: 2, PointsFor: 3200, PointsAgainst: 2900, AveragePointsFor: 1600, WinPct: 0.714},
+			{Rank: 1, Owner: "Alice", Seasons: 2, Wins: 20, Losses: 8, Ties: 0, Titles: 1, PlayoffAppearances: 2, PointsFor: mustTemplatePoints(t, "3200.01"), PointsAgainst: mustTemplatePoints(t, "2900.1"), AveragePointsFor: 1600.005, WinPct: 0.714},
 		},
 		RegularSeasonOwnerTotals: []appstats.OwnerTotal{
-			{Rank: 1, Owner: "Alice", Seasons: 2, Wins: 20, Losses: 8, Ties: 0, PointsFor: 3200, PointsAgainst: 2900, AveragePointsFor: 1600, WinPct: 0.714},
+			{Rank: 1, Owner: "Alice", Seasons: 2, Wins: 20, Losses: 8, Ties: 0, PointsFor: mustTemplatePoints(t, "3200.01"), PointsAgainst: mustTemplatePoints(t, "2900.1"), AveragePointsFor: 1600.005, WinPct: 0.714},
 		},
 		BestRegularSeasons: []appstats.SeasonRecord{
-			{Rank: 1, Owner: "Alice", Year: 2023, Wins: 10, Losses: 4, Ties: 0, FinalStanding: 1, PointsFor: 1600, PointsAgainst: 1450, WinPct: 0.714},
+			{Rank: 1, Owner: "Alice", Year: 2023, Wins: 10, Losses: 4, Ties: 0, FinalStanding: 1, PointsFor: mustTemplatePoints(t, "1600.01"), PointsAgainst: mustTemplatePoints(t, "1450.5"), WinPct: 0.714},
 		},
 		PlayoffHighlightCards: []appstats.HighlightCard{
 			{Label: "Highest playoff score", Value: 130, ValueText: "points", Owner: "Alice", TeamName: "Alice Alpha", Opponent: "Bob Brigade", Year: 2023, Week: 15, Detail: "Playoffs win"},
@@ -36,7 +38,7 @@ func TestStatsTemplateRendersTabbedSectionsAndFixtureData(t *testing.T) {
 			{Label: "Closest championship win", Value: 5, ValueText: "point margin", Owner: "Alice", TeamName: "Alice Alpha", Opponent: "Bob Brigade", Year: 2023, Week: 15, Detail: "Playoffs win"},
 		},
 		Champions: []appstats.ChampionRecord{
-			{Year: 2023, Owner: "Alice", TeamName: "Alice Alpha", Opponent: "Bob Brigade", WinningScore: 130, LosingScore: 125},
+			{Year: 2023, Owner: "Alice", TeamName: "Alice Alpha", Opponent: "Bob Brigade", WinningScore: mustTemplatePoints(t, "130.25"), LosingScore: mustTemplatePoints(t, "125.1")},
 		},
 	}
 
@@ -58,7 +60,14 @@ func TestStatsTemplateRendersTabbedSectionsAndFixtureData(t *testing.T) {
 	assertContains(t, html, "Alice")
 	assertContains(t, html, "2023")
 	assertContains(t, html, "160")
-	assertContains(t, html, "130")
+	assertContains(t, html, "3200.01")
+	assertContains(t, html, "2900.1")
+	assertContains(t, html, "1600.01")
+	assertContains(t, html, "130.25 - 125.1")
+	assertContains(t, html, "Sleeper archive unavailable")
+	assertContains(t, html, "Sleeper archive is temporarily unavailable")
+	assertContains(t, html, "all winners-bracket participation")
+	assertContains(t, html, "verified winner")
 }
 
 func assertContains(t *testing.T, body string, want string) {
@@ -66,4 +75,13 @@ func assertContains(t *testing.T, body string, want string) {
 	if !strings.Contains(body, want) {
 		t.Fatalf("rendered output missing %q", want)
 	}
+}
+
+func mustTemplatePoints(t *testing.T, value string) appstats.Points {
+	t.Helper()
+	points, err := appstats.ParsePoints(value)
+	if err != nil {
+		t.Fatalf("ParsePoints(%q): %v", value, err)
+	}
+	return points
 }

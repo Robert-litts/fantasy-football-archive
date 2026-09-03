@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
 
 const getDraftBoardWithSummary = `-- name: GetDraftBoardWithSummary :many
@@ -17,6 +18,7 @@ SELECT
     d."player_id",
     p."espnId" AS "player_espn_id",
     p."name" AS "player_name",
+    p."position" AS "player_position",
     d."overallPick",
     d."roundNum",
     d."roundPick",
@@ -31,17 +33,18 @@ ORDER BY d."overallPick"
 `
 
 type GetDraftBoardWithSummaryRow struct {
-	DraftID      int32  `json:"draft_id"`
-	TeamID       int32  `json:"team_id"`
-	TeamName     string `json:"team_name"`
-	PlayerID     int32  `json:"player_id"`
-	PlayerEspnID int32  `json:"player_espn_id"`
-	PlayerName   string `json:"player_name"`
-	OverallPick  int32  `json:"overallPick"`
-	RoundNum     int32  `json:"roundNum"`
-	RoundPick    int32  `json:"roundPick"`
-	Year         int32  `json:"year"`
-	TeamCount    int32  `json:"teamCount"`
+	DraftID        int32          `json:"draft_id"`
+	TeamID         int32          `json:"team_id"`
+	TeamName       string         `json:"team_name"`
+	PlayerID       int32          `json:"player_id"`
+	PlayerEspnID   int32          `json:"player_espn_id"`
+	PlayerName     string         `json:"player_name"`
+	PlayerPosition sql.NullString `json:"player_position"`
+	OverallPick    int32          `json:"overallPick"`
+	RoundNum       int32          `json:"roundNum"`
+	RoundPick      int32          `json:"roundPick"`
+	Year           int32          `json:"year"`
+	TeamCount      int32          `json:"teamCount"`
 }
 
 func (q *Queries) GetDraftBoardWithSummary(ctx context.Context, leagueID int32) ([]GetDraftBoardWithSummaryRow, error) {
@@ -60,6 +63,7 @@ func (q *Queries) GetDraftBoardWithSummary(ctx context.Context, leagueID int32) 
 			&i.PlayerID,
 			&i.PlayerEspnID,
 			&i.PlayerName,
+			&i.PlayerPosition,
 			&i.OverallPick,
 			&i.RoundNum,
 			&i.RoundPick,

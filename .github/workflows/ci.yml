@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  workflow_call:
+  pull_request:
+  push:
+    branches:
+      - main
+      - sleeper-integration
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GOTOOLCHAIN: go1.23.3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.3'
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('go.sum') }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache npm
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+
+      - name: Install pinned tools
+        run: |
+          go install github.com/a-h/templ/cmd/templ@v0.3.943
+          go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0
+          go install honnef.co/go/tools/cmd/staticcheck@v0.5.1
+        env:
+          GOPROXY: https://proxy.golang.org,direct
+
+      - name: npm ci
+        run: npm ci
+
+      - name: Templ generate
+        run: templ generate
+
+      - name: SQLC drift check
+        run: |
+          sqlc generate
+          git diff --exit-code -- db/queries db/sleeper_queries internal/db internal/sleeperdb
+
+      - name: Build CSS
+        run: make css/build
+
+      - name: go mod tidy -diff
+        run: go mod tidy -diff
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: staticcheck
+        run: staticcheck ./...
+
+      - name: go test
+        run: go test -race -vet=off -count=1 ./...
+
+      - name: Native build
+        run: |
+          VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo development)
+          go build -trimpath -ldflags="-s -w -X main.version=$VERSION" -o=./bin/api ./cmd/api
+
+      - name: Docker compose config
+        run: cp .env.example .env && docker compose config --quiet
+
+      - name: Docker build
+        run: docker build --pull -t fantasy-football-archive:ci -f Dockerfile .

@@ -65,6 +65,8 @@ func (q *Queries) GetTeamById(ctx context.Context, id int32) (GetTeamByIdRow, er
 const getTeamsByLeagueYear = `-- name: GetTeamsByLeagueYear :many
 SELECT 
     "d"."owners", 
+    "d"."teamAbbrv",
+    "d"."teamName",
     "d"."wins", 
     "d"."losses", 
     "d"."ties", 
@@ -85,6 +87,8 @@ ORDER BY "finalStanding" ASC
 
 type GetTeamsByLeagueYearRow struct {
 	Owners                 string `json:"owners"`
+	TeamAbbrv              string `json:"teamAbbrv"`
+	TeamName               string `json:"teamName"`
 	Wins                   int32  `json:"wins"`
 	Losses                 int32  `json:"losses"`
 	Ties                   int32  `json:"ties"`
@@ -110,6 +114,8 @@ func (q *Queries) GetTeamsByLeagueYear(ctx context.Context, id int32) ([]GetTeam
 		var i GetTeamsByLeagueYearRow
 		if err := rows.Scan(
 			&i.Owners,
+			&i.TeamAbbrv,
+			&i.TeamName,
 			&i.Wins,
 			&i.Losses,
 			&i.Ties,
